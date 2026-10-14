@@ -16,7 +16,13 @@ import {
   Gauge,
   Truck,
   HardHat,
+  FileSpreadsheet,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import { formatAhspForExcel } from '../utils/productivityEngine';
 
 interface WorkCanvas3DProps {
   config: SimulatorConfig;
@@ -86,6 +92,8 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
 
   const [activePreset, setActivePreset] = useState<string>('pit');
   const [activeTrucksInSpot, setActiveTrucksInSpot] = useState<boolean>(false);
+  const [isAhspOpen, setIsAhspOpen] = useState<boolean>(true);
+  const [copiedAhsp, setCopiedAhsp] = useState<boolean>(false);
 
   // Camera presets
   const cameraPresets: Record<string, { pos: [number, number, number]; target: [number, number, number] }> = {
@@ -1026,6 +1034,14 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     }).format(val);
   };
 
+  const handleCopyAhsp = () => {
+    if (!metrics.benchmarks) return;
+    const tsv = formatAhspForExcel(metrics.benchmarks, config);
+    navigator.clipboard.writeText(tsv);
+    setCopiedAhsp(true);
+    setTimeout(() => setCopiedAhsp(false), 2000);
+  };
+
   return (
     <div className="relative w-full h-full overflow-hidden bg-[#0a0f1d] select-none">
       {/* 3D WebGL Canvas */}
@@ -1134,6 +1150,123 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Productivity Benchmarks & AHSP Reference Card */}
+        {metrics.benchmarks && (
+          <div className="bg-[#0f172a]/95 backdrop-blur-xl border border-slate-800 rounded-2xl p-3 shadow-2xl space-y-2.5">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setIsAhspOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 text-xs font-bold text-white hover:text-emerald-400 transition"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Productivity & AHSP Index</span>
+                {isAhspOpen ? (
+                  <ChevronUp className="w-3 h-3 text-slate-400 ml-0.5" />
+                ) : (
+                  <ChevronDown className="w-3 h-3 text-slate-400 ml-0.5" />
+                )}
+              </button>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-mono text-emerald-300 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/60 font-semibold">
+                  PUPR
+                </span>
+                <button
+                  onClick={handleCopyAhsp}
+                  className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-md transition active:scale-95"
+                  title="Copy Permen PUPR AHSP Table for Excel"
+                >
+                  {copiedAhsp ? (
+                    <>
+                      <Check className="w-2.5 h-2.5 text-emerald-400" />
+                      <span>Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-2.5 h-2.5" />
+                      <span>Copy AHSP</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Benchmark 4-Tile Grid */}
+            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-lg p-1.5">
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>🚜 Excavator</span>
+                  <span className="font-mono text-emerald-400 font-bold">
+                    {metrics.benchmarks.excavatorHourlyQ.toFixed(1)} m³/j
+                  </span>
+                </div>
+                <div className="text-[9px] font-mono text-slate-400 mt-0.5">
+                  Koef: <span className="text-white">{metrics.benchmarks.excavatorCoeffJamPerM3.toFixed(4)}</span> jam/m³
+                </div>
+              </div>
+
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-lg p-1.5">
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>🚛 Dump Truck</span>
+                  <span className="font-mono text-sky-400 font-bold">
+                    {metrics.benchmarks.truckHourlyQ.toFixed(1)} m³/j
+                  </span>
+                </div>
+                <div className="text-[9px] font-mono text-slate-400 mt-0.5">
+                  Koef: <span className="text-white">{metrics.benchmarks.truckCoeffJamPerM3.toFixed(4)}</span> jam/m³
+                </div>
+              </div>
+
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-lg p-1.5">
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>👷 Labor Crew</span>
+                  <span className="font-mono text-amber-300 font-bold">
+                    {metrics.benchmarks.crewOutputM3PerManDay.toFixed(1)} m³/OH
+                  </span>
+                </div>
+                <div className="text-[9px] font-mono text-slate-400 mt-0.5">
+                  Koef: <span className="text-white">{metrics.benchmarks.totalLaborCoeffOhPerM3.toFixed(4)}</span> OH/m³
+                </div>
+              </div>
+
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-lg p-1.5">
+                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>⛽ Solar Index</span>
+                  <span className="font-mono text-violet-400 font-bold">
+                    {metrics.benchmarks.fuelIndexLitersPerM3.toFixed(2)} L/m³
+                  </span>
+                </div>
+                <div className="text-[9px] font-mono text-slate-400 mt-0.5">
+                  Tipping: <span className="text-white">{metrics.benchmarks.tippingCoeffRitPerM3.toFixed(3)}</span> rit/m³
+                </div>
+              </div>
+            </div>
+
+            {/* Collapsible PUPR Cost Subtotals Breakdown */}
+            {isAhspOpen && (
+              <div className="space-y-1.5 pt-1 border-t border-slate-800/60 text-[10px]">
+                <div className="flex justify-between text-slate-400">
+                  <span>A. Tenaga Kerja:</span>
+                  <span className="font-mono text-slate-200">{formatIDR(metrics.benchmarks.subtotalTenagaKerja)}</span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>B. Bahan & Solar:</span>
+                  <span className="font-mono text-slate-200">{formatIDR(metrics.benchmarks.subtotalBahan)}</span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>C. Peralatan:</span>
+                  <span className="font-mono text-slate-200">{formatIDR(metrics.benchmarks.subtotalPeralatan)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-1 border-t border-slate-800 font-semibold">
+                  <span className="text-emerald-400">Harga Satuan (HSP):</span>
+                  <span className="font-mono text-emerald-300 text-xs">
+                    {formatIDR(metrics.benchmarks.totalUnitPricePermenPupr)} / m³
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* OrbitControls Navigation Helper Hint (Top Right) */}

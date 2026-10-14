@@ -99,6 +99,59 @@ export interface ProductivityMetrics {
   crewBreakdownText: string;
   operatorCount: number;
   driverCount: number;
+
+  // Productivity Benchmarks & Permen PUPR AHSP
+  benchmarks: ProductivityBenchmarks;
+}
+
+export interface AhspItem {
+  id: string;
+  category: 'A. TENAGA KERJA' | 'B. BAHAN' | 'C. PERALATAN';
+  name: string;
+  unit: 'OH' | 'Liter' | 'Rit' | 'Jam';
+  coefficient: number;
+  unitPriceIdr: number;
+  subtotalIdr: number;
+}
+
+export interface ProductivityBenchmarks {
+  // Excavator
+  excavatorHourlyQ: number; // m3/hour
+  excavatorCoeffJamPerM3: number; // Jam/m3
+
+  // Dump Truck
+  truckHourlyQ: number; // m3/hour
+  truckCoeffJamPerM3: number; // Jam/m3
+
+  // Manpower
+  crewOutputM3PerDay: number; // m3/day
+  crewOutputM3PerManDay: number; // m3/man-day
+  totalLaborCoeffOhPerM3: number; // OH/m3
+  operatorCoeffOh: number; // OH/m3
+  driverCoeffOh: number; // OH/m3
+  mandorCoeffOh: number; // OH/m3
+  spotterCoeffOh: number; // OH/m3
+  helperCoeffOh: number; // OH/m3
+
+  // Specific Fuel Consumption & Tipping
+  fuelIndexLitersPerM3: number; // Liter/m3
+  tippingCoeffRitPerM3: number; // Rit/m3
+
+  // Equipment fleet hours per m3
+  excavatorFleetCoeffJamPerM3: number; // Jam/m3
+  truckFleetCoeffJamPerM3: number; // Jam/m3
+
+  // Monte Carlo Output Variations (m3/hour)
+  outputRateP10: number; // Optimistic (m3/hr)
+  outputRateP50: number; // Expected (m3/hr)
+  outputRateP90: number; // Worst-Case Congested (m3/hr)
+
+  // Standard Permen PUPR AHSP Table
+  ahspTable: AhspItem[];
+  subtotalTenagaKerja: number;
+  subtotalBahan: number;
+  subtotalPeralatan: number;
+  totalUnitPricePermenPupr: number; // Total HSP (Rp/m3)
 }
 
 export interface HistogramBin {
@@ -130,6 +183,11 @@ export interface MonteCarloResult {
   meanCost: number;
   unitRateP50: number;
 
+  // Productivity output rates (m3/hr)
+  outputP10: number; // Optimistic
+  outputP50: number; // Expected
+  outputP90: number; // Congested
+
   costBreakdown: {
     machineCost: number;
     manpowerCost: number;
@@ -138,6 +196,7 @@ export interface MonteCarloResult {
   };
 
   histogramBins: HistogramBin[];
+  benchmarks: ProductivityBenchmarks;
 }
 
 export interface LiveSimulationState {

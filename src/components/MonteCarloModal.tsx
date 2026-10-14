@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   MonteCarloResult,
   ProductivityMetrics,
@@ -13,8 +13,15 @@ import {
   Info,
   DollarSign,
   Truck,
+  Copy,
+  Check,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { fireMilestoneConfetti } from '../utils/confetti';
+import {
+  formatAhspForExcel,
+  formatAhspForCsv,
+} from '../utils/productivityEngine';
 
 interface MonteCarloModalProps {
   isOpen: boolean;
@@ -31,7 +38,27 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({
   metrics,
   config,
 }) => {
+  const [copied, setCopied] = useState(false);
+
   if (!isOpen) return null;
+
+  const handleCopyAhsp = () => {
+    const text = formatAhspForExcel(result.benchmarks, config);
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2200);
+  };
+
+  const handleDownloadAhspCsv = () => {
+    const csv = formatAhspForCsv(result.benchmarks, config);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `AHSP_PUPR_${config.scope.activity}_${config.scope.volumeM3}m3.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Format IDR currency
   const formatIDR = (val: number) => {
@@ -529,6 +556,268 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({
                   </div>
                   <div className="text-white font-bold">{formatIDR(result.costBreakdown.tippingCost)}</div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Productivity Benchmarks & Permen PUPR AHSP Reference */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                <div>
+                  <h3 className="font-bold text-white text-xs sm:text-sm uppercase tracking-wider">
+                    Productivity Benchmarks & AHSP Reference (Permen PUPR)
+                  </h3>
+                  <span className="text-[10px] text-slate-400 block">
+                    Standar koefisien alat, tenaga kerja & indeks bahan untuk estimasi RAB
+                  </span>
+                </div>
+              </div>
+
+              {/* 1-Click Action Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopyAhsp}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition shadow-sm ${
+                    copied
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                  }`}
+                  title="Copy AHSP table in tab-separated format for direct Excel paste"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Copied for Excel!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy AHSP Table</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleDownloadAhspCsv}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 shadow-sm transition"
+                  title="Download standard AHSP CSV file"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download .CSV</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Core Benchmark Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Excavator Unit Productivity */}
+              <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400 font-medium">🚜 Excavator Unit</span>
+                  <span className="text-[9px] font-mono text-sky-400 bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-800">
+                    {config.machine.excavatorModel}
+                  </span>
+                </div>
+                <div className="font-mono text-lg font-bold text-white">
+                  {result.benchmarks.excavatorHourlyQ}{' '}
+                  <span className="text-xs font-normal text-slate-400">m³/jam</span>
+                </div>
+                <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between pt-1 border-t border-slate-900">
+                  <span>Koefisien:</span>
+                  <span className="text-amber-300 font-bold">
+                    {result.benchmarks.excavatorCoeffJamPerM3} jam/m³
+                  </span>
+                </div>
+              </div>
+
+              {/* Dump Truck Unit Productivity */}
+              <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400 font-medium">🚛 Dump Truck Unit</span>
+                  <span className="text-[9px] font-mono text-sky-400 bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-800">
+                    {config.machine.truckCapacityM3} m³
+                  </span>
+                </div>
+                <div className="font-mono text-lg font-bold text-white">
+                  {result.benchmarks.truckHourlyQ}{' '}
+                  <span className="text-xs font-normal text-slate-400">m³/jam</span>
+                </div>
+                <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between pt-1 border-t border-slate-900">
+                  <span>Koefisien:</span>
+                  <span className="text-amber-300 font-bold">
+                    {result.benchmarks.truckCoeffJamPerM3} jam/m³
+                  </span>
+                </div>
+              </div>
+
+              {/* Manpower Productivity */}
+              <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400 font-medium">👷 Labor Crew</span>
+                  <span className="text-[9px] font-mono text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800">
+                    {metrics.totalCrewHeadcount} Crew
+                  </span>
+                </div>
+                <div className="font-mono text-lg font-bold text-white">
+                  {result.benchmarks.crewOutputM3PerManDay}{' '}
+                  <span className="text-xs font-normal text-slate-400">m³/OH</span>
+                </div>
+                <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between pt-1 border-t border-slate-900">
+                  <span>Koef. Total:</span>
+                  <span className="text-amber-300 font-bold">
+                    {result.benchmarks.totalLaborCoeffOhPerM3} OH/m³
+                  </span>
+                </div>
+              </div>
+
+              {/* Specific Fuel Consumption */}
+              <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400 font-medium">⛽ Fuel Index</span>
+                  <span className="text-[9px] font-mono text-violet-400 bg-violet-950/80 px-1.5 py-0.5 rounded border border-violet-800">
+                    {config.scope.haulDistanceKm} km
+                  </span>
+                </div>
+                <div className="font-mono text-lg font-bold text-white">
+                  {result.benchmarks.fuelIndexLitersPerM3}{' '}
+                  <span className="text-xs font-normal text-slate-400">L/m³</span>
+                </div>
+                <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between pt-1 border-t border-slate-900">
+                  <span>Tipping:</span>
+                  <span className="text-amber-300 font-bold">
+                    {result.benchmarks.tippingCoeffRitPerM3} rit/m³
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Monte Carlo Output Rate Variations */}
+            <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-sky-400" />
+                  Productivity Rate Distribution (Monte Carlo):
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono">1,000 Stochastic Iterations</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center font-mono">
+                <div className="bg-emerald-950/40 border border-emerald-900/60 rounded-lg p-2">
+                  <span className="text-[10px] text-emerald-400 block">P10 (Optimistic)</span>
+                  <span className="text-sm sm:text-base font-bold text-white">
+                    {result.outputP10} <span className="text-xs text-slate-400">m³/jam</span>
+                  </span>
+                </div>
+                <div className="bg-sky-950/50 border border-sky-900/80 rounded-lg p-2">
+                  <span className="text-[10px] text-sky-400 block">P50 (Expected)</span>
+                  <span className="text-sm sm:text-base font-bold text-sky-300">
+                    {result.outputP50} <span className="text-xs text-slate-400">m³/jam</span>
+                  </span>
+                </div>
+                <div className="bg-amber-950/40 border border-amber-900/60 rounded-lg p-2">
+                  <span className="text-[10px] text-amber-400 block">P90 (Worst-Case)</span>
+                  <span className="text-sm sm:text-base font-bold text-white">
+                    {result.outputP90} <span className="text-xs text-slate-400">m³/jam</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Permen PUPR Standard AHSP Table */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-200">
+                  Tabel Analisis Harga Satuan Pekerjaan (Permen PUPR Format)
+                </span>
+                <span className="font-mono text-[10px] text-slate-400">
+                  Satuan Pembayaran: 1 m³ Tanah
+                </span>
+              </div>
+
+              <div className="w-full overflow-x-auto rounded-xl border border-slate-800">
+                <table className="w-full text-left text-[11px] font-sans border-collapse">
+                  <thead>
+                    <tr className="bg-slate-950 text-slate-400 border-b border-slate-800 font-mono text-[10px]">
+                      <th className="p-2.5 font-semibold">Uraian Komponen / Spesifikasi</th>
+                      <th className="p-2.5 font-semibold text-center w-16">Satuan</th>
+                      <th className="p-2.5 font-semibold text-right w-24">Koefisien</th>
+                      <th className="p-2.5 font-semibold text-right w-28">Harga Satuan (Rp)</th>
+                      <th className="p-2.5 font-semibold text-right w-32">Jumlah Harga (Rp)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono">
+                    {/* A. Tenaga Kerja */}
+                    <tr className="bg-slate-900/80 font-bold text-emerald-400 font-sans">
+                      <td colSpan={5} className="p-2 text-xs">A. TENAGA KERJA</td>
+                    </tr>
+                    {result.benchmarks.ahspTable
+                      .filter((i) => i.category === 'A. TENAGA KERJA')
+                      .map((row) => (
+                        <tr key={row.id} className="hover:bg-slate-800/30">
+                          <td className="p-2 pl-4 text-slate-300 font-sans">{row.name}</td>
+                          <td className="p-2 text-center text-slate-400">{row.unit}</td>
+                          <td className="p-2 text-right text-amber-300">{row.coefficient.toFixed(4)}</td>
+                          <td className="p-2 text-right text-slate-300">{formatIDR(row.unitPriceIdr)}</td>
+                          <td className="p-2 text-right text-white font-bold">{formatIDR(row.subtotalIdr)}</td>
+                        </tr>
+                      ))}
+                    <tr className="bg-slate-950/60 text-slate-400 text-[10px]">
+                      <td colSpan={4} className="p-2 text-right font-sans font-semibold">Subtotal Tenaga Kerja:</td>
+                      <td className="p-2 text-right text-emerald-400 font-bold">{formatIDR(result.benchmarks.subtotalTenagaKerja)}</td>
+                    </tr>
+
+                    {/* B. Bahan */}
+                    <tr className="bg-slate-900/80 font-bold text-amber-400 font-sans">
+                      <td colSpan={5} className="p-2 text-xs">B. BAHAN</td>
+                    </tr>
+                    {result.benchmarks.ahspTable
+                      .filter((i) => i.category === 'B. BAHAN')
+                      .map((row) => (
+                        <tr key={row.id} className="hover:bg-slate-800/30">
+                          <td className="p-2 pl-4 text-slate-300 font-sans">{row.name}</td>
+                          <td className="p-2 text-center text-slate-400">{row.unit}</td>
+                          <td className="p-2 text-right text-amber-300">{row.coefficient.toFixed(4)}</td>
+                          <td className="p-2 text-right text-slate-300">{formatIDR(row.unitPriceIdr)}</td>
+                          <td className="p-2 text-right text-white font-bold">{formatIDR(row.subtotalIdr)}</td>
+                        </tr>
+                      ))}
+                    <tr className="bg-slate-950/60 text-slate-400 text-[10px]">
+                      <td colSpan={4} className="p-2 text-right font-sans font-semibold">Subtotal Bahan:</td>
+                      <td className="p-2 text-right text-amber-400 font-bold">{formatIDR(result.benchmarks.subtotalBahan)}</td>
+                    </tr>
+
+                    {/* C. Peralatan */}
+                    <tr className="bg-slate-900/80 font-bold text-sky-400 font-sans">
+                      <td colSpan={5} className="p-2 text-xs">C. PERALATAN</td>
+                    </tr>
+                    {result.benchmarks.ahspTable
+                      .filter((i) => i.category === 'C. PERALATAN')
+                      .map((row) => (
+                        <tr key={row.id} className="hover:bg-slate-800/30">
+                          <td className="p-2 pl-4 text-slate-300 font-sans">{row.name}</td>
+                          <td className="p-2 text-center text-slate-400">{row.unit}</td>
+                          <td className="p-2 text-right text-amber-300">{row.coefficient.toFixed(4)}</td>
+                          <td className="p-2 text-right text-slate-300">{formatIDR(row.unitPriceIdr)}</td>
+                          <td className="p-2 text-right text-white font-bold">{formatIDR(row.subtotalIdr)}</td>
+                        </tr>
+                      ))}
+                    <tr className="bg-slate-950/60 text-slate-400 text-[10px]">
+                      <td colSpan={4} className="p-2 text-right font-sans font-semibold">Subtotal Peralatan:</td>
+                      <td className="p-2 text-right text-sky-400 font-bold">{formatIDR(result.benchmarks.subtotalPeralatan)}</td>
+                    </tr>
+
+                    {/* Grand Total */}
+                    <tr className="bg-emerald-950/80 border-t-2 border-emerald-600 text-white font-bold">
+                      <td colSpan={4} className="p-2.5 text-right font-sans text-xs">
+                        TOTAL HARGA SATUAN PEKERJAAN (HSP / m³):
+                      </td>
+                      <td className="p-2.5 text-right text-emerald-300 text-sm">
+                        {formatIDR(result.benchmarks.totalUnitPricePermenPupr)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
