@@ -1,14 +1,62 @@
-export type WorkActivity = 'excavation' | 'embankment' | 'concrete';
+export type WorkActivity = 'excavation' | 'embankment' | 'rigid_pavement' | 'uditch' | 'concrete';
 
 export type SoilType = 'tanah_biasa' | 'tanah_keras' | 'lempung_basah';
 
 export type ExcavatorModel = 'PC200' | 'PC300';
+
+export interface EmbankmentParams {
+  layerThicknessM: number; // e.g. 0.25 m (0.15 - 0.40)
+  rollerPasses: number; // e.g. 8 passes (4 - 12)
+  vibroRollerCount: number; // e.g. 1 (1 - 4)
+  vibroRollerRentalPerHour: number; // e.g. 240000
+  bulldozerCount: number; // e.g. 1 (1 - 3)
+  bulldozerRentalPerHour: number; // e.g. 320000
+  waterTankerCount: number; // e.g. 1 (1 - 3)
+  waterTankerRentalPerHour: number; // e.g. 180000
+  waterPricePerM3: number; // e.g. 35000 / m3
+}
+
+export interface RigidPavementParams {
+  slabThicknessCm: number; // e.g. 25 cm (15 - 35)
+  pavementAreaM2: number; // e.g. 4000 m2
+  concreteGrade: 'FS45' | 'K350' | 'K300';
+  concretePricePerM3: number; // e.g. 1150000
+  concretePumpCount: number; // e.g. 1 (1 - 2)
+  concretePumpRentalPerHour: number; // e.g. 450000
+  transitMixerCount: number; // e.g. 6 (2 - 14)
+  transitMixerCapacityM3: number; // e.g. 7 m3
+  transitMixerRentalPerHour: number; // e.g. 180000
+  vibratorCount: number; // e.g. 2 (1 - 4)
+  vibratorRentalPerHour: number; // e.g. 50000
+  dowelSteelKgPerM2: number; // e.g. 12 kg/m2
+  dowelSteelPricePerKg: number; // e.g. 16500
+  curingCompoundPricePerM2: number; // e.g. 25000
+}
+
+export interface UDitchParams {
+  trenchLengthM: number; // e.g. 600 m'
+  uDitchSize: 'U-60' | 'U-80' | 'U-100' | 'U-120';
+  uDitchLengthPerPcs: number; // e.g. 1.2 m
+  uDitchPricePerPcs: number; // e.g. 820000
+  sandBeddingM3PerM: number; // e.g. 0.08 m3/m'
+  sandPricePerM3: number; // e.g. 280000
+  mortarJointPricePerM: number; // e.g. 45000
+  mobileCraneCount: number; // e.g. 1 (1 - 2)
+  mobileCraneRentalPerHour: number; // e.g. 360000
+  miniExcavatorCount: number; // e.g. 1 (1 - 2)
+  miniExcavatorRentalPerHour: number; // e.g. 190000
+  flatbedTruckCount: number; // e.g. 2 (1 - 4)
+  flatbedTruckRentalPerHour: number; // e.g. 160000
+}
 
 export interface ProjectScope {
   activity: WorkActivity;
   volumeM3: number;
   materialType: SoilType;
   haulDistanceKm: number;
+  embankment?: EmbankmentParams;
+  rigidPavement?: RigidPavementParams;
+  uditch?: UDitchParams;
 }
 
 export interface MachineConfig {
@@ -100,6 +148,10 @@ export interface ProductivityMetrics {
   operatorCount: number;
   driverCount: number;
 
+  // Package & Unit Telemetry
+  unitLabel: string; // 'm³' or 'm\''
+  workPackageTitle: string;
+
   // Productivity Benchmarks & Permen PUPR AHSP
   benchmarks: ProductivityBenchmarks;
 }
@@ -108,14 +160,22 @@ export interface AhspItem {
   id: string;
   category: 'A. TENAGA KERJA' | 'B. BAHAN' | 'C. PERALATAN';
   name: string;
-  unit: 'OH' | 'Liter' | 'Rit' | 'Jam';
+  unit: string;
   coefficient: number;
   unitPriceIdr: number;
   subtotalIdr: number;
 }
 
 export interface ProductivityBenchmarks {
-  // Excavator
+  unitLabel: string;
+  primaryEquipLabel: string;
+  primaryEquipOutput: number;
+  primaryEquipCoeff: number;
+  secondaryEquipLabel: string;
+  secondaryEquipOutput: number;
+  secondaryEquipCoeff: number;
+
+  // Excavator (default/excavation)
   excavatorHourlyQ: number; // m3/hour
   excavatorCoeffJamPerM3: number; // Jam/m3
 
@@ -124,9 +184,9 @@ export interface ProductivityBenchmarks {
   truckCoeffJamPerM3: number; // Jam/m3
 
   // Manpower
-  crewOutputM3PerDay: number; // m3/day
-  crewOutputM3PerManDay: number; // m3/man-day
-  totalLaborCoeffOhPerM3: number; // OH/m3
+  crewOutputM3PerDay: number; // m3/day or m'/day
+  crewOutputM3PerManDay: number; // m3/man-day or m'/man-day
+  totalLaborCoeffOhPerM3: number; // OH/m3 or OH/m'
   operatorCoeffOh: number; // OH/m3
   driverCoeffOh: number; // OH/m3
   mandorCoeffOh: number; // OH/m3
@@ -141,7 +201,7 @@ export interface ProductivityBenchmarks {
   excavatorFleetCoeffJamPerM3: number; // Jam/m3
   truckFleetCoeffJamPerM3: number; // Jam/m3
 
-  // Monte Carlo Output Variations (m3/hour)
+  // Monte Carlo Output Variations (m3/hour or m'/hour)
   outputRateP10: number; // Optimistic (m3/hr)
   outputRateP50: number; // Expected (m3/hr)
   outputRateP90: number; // Worst-Case Congested (m3/hr)
@@ -151,7 +211,7 @@ export interface ProductivityBenchmarks {
   subtotalTenagaKerja: number;
   subtotalBahan: number;
   subtotalPeralatan: number;
-  totalUnitPricePermenPupr: number; // Total HSP (Rp/m3)
+  totalUnitPricePermenPupr: number; // Total HSP (Rp/m3 or Rp/m')
 }
 
 export interface HistogramBin {

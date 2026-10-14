@@ -52,11 +52,11 @@ export const SimulatorHeader: React.FC<SimulatorHeaderProps> = ({
           </div>
           <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-slate-400">
             <span className="font-medium text-slate-300">
-              4D Construction Work & Productivity Simulator
+              {metrics.workPackageTitle}
             </span>
             <span>•</span>
             <span className="text-slate-400">
-              {config.scope.volumeM3.toLocaleString()} m³ • {config.scope.haulDistanceKm} km Haul • {config.machine.excavatorCount}x {config.machine.excavatorModel} + {config.machine.truckCount} Trucks
+              {config.scope.volumeM3.toLocaleString()} {metrics.unitLabel} • {metrics.benchmarks.primaryEquipLabel} & {metrics.benchmarks.secondaryEquipLabel}
             </span>
           </div>
         </div>
@@ -83,7 +83,7 @@ export const SimulatorHeader: React.FC<SimulatorHeaderProps> = ({
         <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900/80 border border-slate-800 text-xs">
           <span className="text-slate-500 font-mono text-[11px]">Daily Rate:</span>
           <span className="text-white font-bold font-mono text-[11px]">
-            {metrics.dailyOutputM3.toLocaleString()} m³/d
+            {metrics.dailyOutputM3.toLocaleString()} {metrics.unitLabel}/d
           </span>
         </div>
 
@@ -124,7 +124,7 @@ export const SimulatorHeader: React.FC<SimulatorHeaderProps> = ({
               <div className="flex items-center gap-2">
                 <HardHat className="w-5 h-5 text-amber-400" />
                 <h3 className="font-bold text-white text-base">
-                  4M Civil Engineering Equations & Standards
+                  4M Civil Engineering Equations & Standards (Permen PUPR)
                 </h3>
               </div>
               <button
@@ -145,10 +145,10 @@ export const SimulatorHeader: React.FC<SimulatorHeaderProps> = ({
               </div>
 
               <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 font-mono">
-                <span className="text-sky-400 font-bold block mb-1">2. Fleet Match Factor Formula:</span>
-                <p className="text-slate-300">MF = (N_truck × T_load) / (N_excavator × T_cycle_truck)</p>
+                <span className="text-sky-400 font-bold block mb-1">2. Compactor (Vibro Roller) Productivity Formula:</span>
+                <p className="text-slate-300">Q = (W × v × 1000 × t × E) / N</p>
                 <span className="text-[10px] text-slate-500">
-                  T_load = passes × Cm; T_cycle = T_load + T_haul + T_dump + T_return + T_spot.
+                  W = drum width (m), v = speed (km/h), t = layer thickness (m), E = efficiency, N = passes.
                 </span>
               </div>
 
@@ -158,10 +158,10 @@ export const SimulatorHeader: React.FC<SimulatorHeaderProps> = ({
                   <span>Current Project Baseline Metrics:</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                  <div>Hourly Output: <strong className="text-white">{metrics.systemHourlyQ} m³/hr</strong></div>
-                  <div>Daily Output: <strong className="text-white">{metrics.dailyOutputM3} m³/day</strong></div>
-                  <div>Duration (Deterministic): <strong className="text-white">{metrics.estimatedDurationDays} Days</strong></div>
-                  <div>Unit Rate: <strong className="text-emerald-400">{formatIDR(metrics.unitRatePerM3)} / m³</strong></div>
+                  <div>Hourly Output: <strong className="text-white">{metrics.systemHourlyQ} {metrics.unitLabel}/hr</strong></div>
+                  <div>Daily Output: <strong className="text-white">{metrics.dailyOutputM3} {metrics.unitLabel}/day</strong></div>
+                  <div>Duration (Deterministic): <strong className="text-white">{metrics.estimatedDurationDays} Hari</strong></div>
+                  <div>Unit Rate: <strong className="text-emerald-400">{formatIDR(metrics.unitRatePerM3)} / {metrics.unitLabel}</strong></div>
                 </div>
               </div>
             </div>

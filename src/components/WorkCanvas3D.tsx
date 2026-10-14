@@ -33,24 +33,24 @@ interface WorkCanvas3DProps {
   onChangeSpeed: (speed: number) => void;
 }
 
-// Closed-loop 3D waypoint circuit for dump truck fleet
+// Closed-loop 3D waypoint circuit for excavation dump truck fleet
 const HAUL_WAYPOINTS = [
-  new THREE.Vector3(2, -5, 0),    // Point A: Loading Spot beside Excavator (Pit floor)
-  new THREE.Vector3(10, -5, 1),   // Pit floor exit straightaway
-  new THREE.Vector3(16, -3.5, 3), // Ramp ascending out of pit
-  new THREE.Vector3(24, 0, 8),    // Ramp crest reaching ground surface level
-  new THREE.Vector3(34, 0, 16),   // Surface haul road turn
-  new THREE.Vector3(46, 0, 26),   // Surface straightaway
-  new THREE.Vector3(58, 0, 36),   // Approaching disposal site
-  new THREE.Vector3(65, 0, 42),   // Disposal site entrance
-  new THREE.Vector3(68, 0, 48),   // Point D: Spoil dumping spot (bed tilting)
-  new THREE.Vector3(63, 0, 54),   // Turnaround loop behind spoil pile
-  new THREE.Vector3(50, 0, 42),   // Return haul road
-  new THREE.Vector3(36, 0, 28),   // Return lane
-  new THREE.Vector3(24, 0, 14),   // Approaching pit ramp
-  new THREE.Vector3(16, 0, 8),    // Ramp crest entering pit
-  new THREE.Vector3(12, -3.5, 3), // Mid-ramp descent
-  new THREE.Vector3(6, -5, 0),    // Approaching loading bay
+  new THREE.Vector3(2, -5, 0),
+  new THREE.Vector3(10, -5, 1),
+  new THREE.Vector3(16, -3.5, 3),
+  new THREE.Vector3(24, 0, 8),
+  new THREE.Vector3(34, 0, 16),
+  new THREE.Vector3(46, 0, 26),
+  new THREE.Vector3(58, 0, 36),
+  new THREE.Vector3(65, 0, 42),
+  new THREE.Vector3(68, 0, 48),
+  new THREE.Vector3(63, 0, 54),
+  new THREE.Vector3(50, 0, 42),
+  new THREE.Vector3(36, 0, 28),
+  new THREE.Vector3(24, 0, 14),
+  new THREE.Vector3(16, 0, 8),
+  new THREE.Vector3(12, -3.5, 3),
+  new THREE.Vector3(6, -5, 0),
 ];
 
 export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
@@ -77,18 +77,40 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
   // Animation clocks
   const haulClockRef = useRef<number>(0);
   const digClockRef = useRef<number>(0);
-  const isTruckLoadingRef = useRef<boolean>(false);
+  const compactorClockRef = useRef<number>(0);
+  const craneClockRef = useRef<number>(0);
+  const mixerClockRef = useRef<number>(0);
 
-  // Mesh & Group refs for 4D excavation & heavy equipment animation
+  // Mesh & Group refs
+  // Excavation
+  const excavationRootRef = useRef<THREE.Group | null>(null);
   const soilBlockMeshRef = useRef<THREE.Mesh | null>(null);
   const spoilPileMeshRef = useRef<THREE.Mesh | null>(null);
-  const excavatorGroupRef = useRef<THREE.Group | null>(null);
   const excavatorSlewRef = useRef<THREE.Group | null>(null);
   const boomRef = useRef<THREE.Group | null>(null);
   const stickRef = useRef<THREE.Group | null>(null);
   const bucketRef = useRef<THREE.Group | null>(null);
   const trucksGroupRef = useRef<THREE.Group | null>(null);
   const dustParticlesRef = useRef<THREE.Points | null>(null);
+
+  // Embankment
+  const embankmentRootRef = useRef<THREE.Group | null>(null);
+  const fillRoadwayMeshRef = useRef<THREE.Mesh | null>(null);
+  const vibroRollerGroupRef = useRef<THREE.Group | null>(null);
+  const vibroDrumRef = useRef<THREE.Mesh | null>(null);
+  const rollerDustRef = useRef<THREE.Points | null>(null);
+
+  // Rigid Pavement
+  const rigidRootRef = useRef<THREE.Group | null>(null);
+  const pavedSlabMeshRef = useRef<THREE.Mesh | null>(null);
+  const mixerDrumMeshRef = useRef<THREE.Mesh | null>(null);
+  const pumpBoomRef = useRef<THREE.Group | null>(null);
+
+  // U-Ditch Precast
+  const uditchRootRef = useRef<THREE.Group | null>(null);
+  const uditchTrenchPlacedRef = useRef<THREE.Group | null>(null);
+  const craneSlewRef = useRef<THREE.Group | null>(null);
+  const craneHookBlockRef = useRef<THREE.Group | null>(null);
 
   const [activePreset, setActivePreset] = useState<string>('pit');
   const [activeTrucksInSpot, setActiveTrucksInSpot] = useState<boolean>(false);
@@ -98,9 +120,8 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
   // Camera presets
   const cameraPresets: Record<string, { pos: [number, number, number]; target: [number, number, number] }> = {
     pit: { pos: [-36, 24, 28], target: [0, 2, 0] },
-    excavator: { pos: [-16, 8, 14], target: [-4, 2, 0] },
+    equipment: { pos: [-16, 8, 14], target: [-4, 2, 0] },
     haul: { pos: [-10, 24, 65], target: [25, 2, 50] },
-    spoil: { pos: [72, 16, 52], target: [60, 4, 35] },
     topdown: { pos: [0, 95, 0], target: [0, 0, 0] },
   };
 
@@ -120,7 +141,7 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     function step(now: number) {
       const elapsed = now - startTime;
       const progress = Math.min(1, elapsed / duration);
-      const ease = 1 - Math.pow(1 - progress, 3); // cubic ease-out
+      const ease = 1 - Math.pow(1 - progress, 3);
 
       cameraRef.current?.position.lerpVectors(startPos, endPos, ease);
       controlsRef.current?.target.lerpVectors(startTarget, endTarget, ease);
@@ -133,7 +154,7 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     requestAnimationFrame(step);
   }, []);
 
-  // Helper to build a detailed, lightweight 3D dump truck mesh
+  // Helper to build a dump truck mesh
   const createDumpTruckMesh = useCallback((id: number, capacityM3: number) => {
     const t = new THREE.Group();
     t.name = `truck_${id}`;
@@ -145,15 +166,13 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
 
     const blackMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.8, metalness: 0.3 });
     const metalMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3, metalness: 0.8 });
-    const cabColor = id % 2 === 0 ? 0x0284c7 : 0x0ea5e9; // Alternating fleet cyan/blue cabs
+    const cabColor = id % 2 === 0 ? 0x0284c7 : 0x0ea5e9;
 
-    // 1. Chassis
     const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.8, chassisLength), blackMat);
     chassis.position.y = 0.8;
     chassis.castShadow = true;
     t.add(chassis);
 
-    // 2. Cab (Front of truck is at +Z)
     const cab = new THREE.Mesh(
       new THREE.BoxGeometry(2.5, 2.1, 2.3),
       new THREE.MeshStandardMaterial({ color: cabColor, roughness: 0.4 })
@@ -162,12 +181,6 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     cab.castShadow = true;
     t.add(cab);
 
-    // Cab Visor / Stone Guard
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.15, 1.2), blackMat);
-    visor.position.set(0, 2.9, chassisLength * 0.32 + 0.3);
-    t.add(visor);
-
-    // Windshield
     const windshield = new THREE.Mesh(
       new THREE.BoxGeometry(2.2, 1.1, 0.1),
       new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.1, transparent: true, opacity: 0.75 })
@@ -175,13 +188,7 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     windshield.position.set(0, 1.95, chassisLength * 0.32 + 1.16);
     t.add(windshield);
 
-    // Headlights (Dual glowing emissive cylinders pointing along +Z)
-    const hlMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: 0xfef08a,
-      emissiveIntensity: 2.2,
-      roughness: 0.2,
-    });
+    const hlMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfef08a, emissiveIntensity: 2.2 });
     for (const side of [-0.9, 0.9]) {
       const hl = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.1, 12), hlMat);
       hl.rotation.x = Math.PI / 2;
@@ -189,24 +196,10 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
       t.add(hl);
     }
 
-    // Rear Taillights (Red emissive at -Z)
-    const tailMat = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      emissive: 0xef4444,
-      emissiveIntensity: 1.5,
-    });
-    for (const side of [-1.0, 1.0]) {
-      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.1), tailMat);
-      tl.position.set(side, 0.8, -chassisLength * 0.5);
-      t.add(tl);
-    }
-
-    // Exhaust Stack behind Cab
     const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.2, 8), metalMat);
     exhaust.position.set(1.15, 2.6, chassisLength * 0.32 - 1.2);
     t.add(exhaust);
 
-    // 3. Tilting Dump Bed Pivot (Located at rear chassis)
     const bedPivot = new THREE.Group();
     bedPivot.name = 'bedPivot';
     bedPivot.position.set(0, 1.3, -chassisLength * 0.38);
@@ -219,7 +212,6 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     dumpBed.castShadow = true;
     bedPivot.add(dumpBed);
 
-    // Soil mound inside bed (Visible while hauling, hidden when dumped)
     const soilInBed = new THREE.Mesh(
       new THREE.BoxGeometry(2.4, bedHeight * 0.65, bedLength * 0.9),
       new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.95 })
@@ -231,23 +223,14 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
 
     t.add(bedPivot);
 
-    // 4. Heavy Off-Road Wheels
     const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.9 });
-    const hubMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3 });
     const zAxles = isLargeTruck ? [2.4, -0.6, -2.0, -3.4] : [2.2, -1.0, -2.6];
-
     for (const zPos of zAxles) {
       for (const side of [-1.4, 1.4]) {
         const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.48, 14), wheelMat);
         wheel.rotation.z = Math.PI / 2;
         wheel.position.set(side, 0.55, zPos);
-
-        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.5, 10), hubMat);
-        hub.rotation.z = Math.PI / 2;
-        hub.position.set(side, 0.55, zPos);
-
         t.add(wheel);
-        t.add(hub);
       }
     }
 
@@ -255,7 +238,7 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     return t;
   }, []);
 
-  // Helper to build realistic, low-poly civil construction workers with PPE (helmet & high-vis vest)
+  // Helper to build civil construction workers
   const createWorkerFigure = useCallback((role: 'spotter' | 'mandor' | 'helper') => {
     const g = new THREE.Group();
     g.name = `worker_${role}`;
@@ -263,25 +246,13 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     const isMandor = role === 'mandor';
     const isSpotter = role === 'spotter';
 
-    // Materials
-    const helmetColor = isMandor ? 0xf8fafc : 0xfacc15; // White supervisor helmet for Mandor, Yellow for Spotter/Helper
-    const vestColor = isMandor ? 0x84cc16 : 0xf97316; // Fluorescent Lime Green for Mandor, Neon Orange for Spotter/Helper
+    const helmetColor = isMandor ? 0xf8fafc : 0xfacc15;
+    const vestColor = isMandor ? 0x84cc16 : 0xf97316;
     const skinMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.6 });
     const helmetMat = new THREE.MeshStandardMaterial({ color: helmetColor, roughness: 0.35, metalness: 0.1 });
     const vestMat = new THREE.MeshStandardMaterial({ color: vestColor, roughness: 0.45 });
-    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.2, metalness: 0.6 });
-    const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.8 }); // Navy blue trousers
-    const bootsMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.9 }); // Dark work boots
+    const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.8 });
 
-    // 1. Safety Work Boots
-    for (const xOff of [-0.14, 0.14]) {
-      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.16, 0.32), bootsMat);
-      boot.position.set(xOff, 0.08, 0.04);
-      boot.castShadow = true;
-      g.add(boot);
-    }
-
-    // 2. Legs / Pants
     for (const xOff of [-0.14, 0.14]) {
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.72, 0.18), pantsMat);
       leg.position.set(xOff, 0.52, 0);
@@ -289,127 +260,56 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
       g.add(leg);
     }
 
-    // 3. Torso with High-Vis Safety Vest
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.64, 0.28), vestMat);
     torso.position.set(0, 1.16, 0);
     torso.castShadow = true;
     g.add(torso);
 
-    // Retroreflective silver stripe across chest
-    const stripeH = new THREE.Mesh(new THREE.BoxGeometry(0.53, 0.08, 0.29), stripeMat);
-    stripeH.position.set(0, 1.16, 0);
-    g.add(stripeH);
-
-    // 4. Head & Face
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.28, 0.26), skinMat);
     head.position.set(0, 1.62, 0);
     head.castShadow = true;
     g.add(head);
 
-    // 5. Safety Helmet (Hardhat)
-    const helmetDome = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.18, 12), helmetMat);
-    helmetDome.position.set(0, 1.82, 0);
-    helmetDome.castShadow = true;
-    g.add(helmetDome);
+    const helmet = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.18, 12), helmetMat);
+    helmet.position.set(0, 1.82, 0);
+    helmet.castShadow = true;
+    g.add(helmet);
 
-    const helmetBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.04, 12), helmetMat);
-    helmetBrim.position.set(0, 1.74, 0.03);
-    g.add(helmetBrim);
-
-    // 6. Role-Specific Props & Gestures
     if (isSpotter) {
-      // Left arm resting
-      const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.14), vestMat);
-      leftArm.position.set(-0.32, 1.15, 0);
-      g.add(leftArm);
-
-      // Right arm raised holding signal flag (animated waving)
       const flagArmPivot = new THREE.Group();
       flagArmPivot.name = 'flagArm';
       flagArmPivot.position.set(0.32, 1.35, 0);
-
-      const armMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.52, 0.14), vestMat);
-      armMesh.position.set(0.12, 0.1, 0.1);
-      armMesh.rotation.z = -Math.PI / 4;
-      flagArmPivot.add(armMesh);
-
-      // Wooden Flag Pole & Red Traffic Signal Cloth
-      const pole = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.02, 0.02, 1.35, 8),
-        new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.6 })
-      );
-      pole.position.set(0.28, 0.45, 0.2);
-      pole.rotation.z = -Math.PI / 6;
-      flagArmPivot.add(pole);
 
       const flag = new THREE.Mesh(
         new THREE.PlaneGeometry(0.5, 0.36),
         new THREE.MeshStandardMaterial({ color: 0xef4444, side: THREE.DoubleSide, roughness: 0.4 })
       );
-      flag.position.set(0.55, 0.95, 0.2);
-      flag.rotation.y = Math.PI / 4;
+      flag.position.set(0.45, 0.4, 0.1);
       flagArmPivot.add(flag);
-
       g.add(flagArmPivot);
     } else if (isMandor) {
-      // Both arms holding a field clipboard
-      for (const side of [-1, 1]) {
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.14), vestMat);
-        arm.position.set(side * 0.28, 1.2, 0.12);
-        arm.rotation.x = -Math.PI / 3;
-        g.add(arm);
-      }
-
-      // Wooden Clipboard with white inspection report sheet
-      const clipboardGroup = new THREE.Group();
-      clipboardGroup.position.set(0, 1.15, 0.35);
-      clipboardGroup.rotation.x = -Math.PI / 5;
-
-      const board = new THREE.Mesh(
-        new THREE.BoxGeometry(0.34, 0.44, 0.02),
+      const clipboard = new THREE.Mesh(
+        new THREE.BoxGeometry(0.32, 0.42, 0.02),
         new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 })
       );
-      clipboardGroup.add(board);
-
-      const paper = new THREE.Mesh(
-        new THREE.BoxGeometry(0.28, 0.38, 0.01),
-        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })
-      );
-      paper.position.z = 0.015;
-      clipboardGroup.add(paper);
-
-      g.add(clipboardGroup);
-    } else {
-      // General Helper / Pit Spotter holding grade rod
-      for (const side of [-1, 1]) {
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.14), vestMat);
-        arm.position.set(side * 0.32, 1.15, 0);
-        g.add(arm);
-      }
-
-      const rod = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.025, 0.025, 1.8, 8),
-        new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3, metalness: 0.8 })
-      );
-      rod.position.set(0.36, 0.9, 0.1);
-      g.add(rod);
+      clipboard.position.set(0, 1.15, 0.3);
+      clipboard.rotation.x = -Math.PI / 4;
+      g.add(clipboard);
     }
 
     return g;
   }, []);
 
-  // Synchronize 3D truck fleet meshes with user's slider count & capacity
+  // Synchronize 3D truck fleet
   const syncTruckFleet = useCallback((count: number, capacityM3: number) => {
     const trucksGroup = trucksGroupRef.current;
     if (!trucksGroup) return;
 
-    // Clean up existing truck meshes
     while (trucksGroup.children.length > 0) {
       const child = trucksGroup.children[0];
       trucksGroup.remove(child);
     }
 
-    // Instantiate exactly user's configured fleet count
     const targetCount = Math.max(1, Math.min(12, count));
     for (let i = 0; i < targetCount; i++) {
       const truck = createDumpTruckMesh(i + 1, capacityM3);
@@ -417,7 +317,7 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     }
   }, [createDumpTruckMesh]);
 
-  // Main Three.js Scene Setup & Render Loop
+  // Main Scene Setup
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -425,18 +325,14 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    // 1. Scene with engineering dark navy backdrop & subtle depth fog
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0f1d);
     scene.fog = new THREE.FogExp2(0x0a0f1d, 0.0075);
 
-    // 2. Camera
     const camera = new THREE.PerspectiveCamera(45, width / height, 1, 1200);
-    const initCam = cameraPresets.pit;
-    camera.position.set(...initCam.pos);
+    camera.position.set(...cameraPresets.pit.pos);
     cameraRef.current = camera;
 
-    // 3. High-Performance WebGL Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -446,17 +342,16 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     renderer.toneMappingExposure = 1.15;
     container.appendChild(renderer.domElement);
 
-    // 4. OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.target.set(...initCam.target);
-    controls.maxPolarAngle = Math.PI / 2 - 0.02; // Prevent underground clipping
+    controls.target.set(...cameraPresets.pit.target);
+    controls.maxPolarAngle = Math.PI / 2 - 0.02;
     controls.minDistance = 6;
     controls.maxDistance = 280;
     controlsRef.current = controls;
 
-    // 5. Lighting
+    // Lighting
     const ambientLight = new THREE.AmbientLight(0x94a3b8, 1.25);
     scene.add(ambientLight);
 
@@ -465,218 +360,100 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
-    sunLight.shadow.camera.near = 10;
-    sunLight.shadow.camera.far = 320;
-    sunLight.shadow.camera.left = -85;
-    sunLight.shadow.camera.right = 85;
-    sunLight.shadow.camera.top = 85;
-    sunLight.shadow.camera.bottom = -85;
-    sunLight.shadow.bias = -0.0005;
     scene.add(sunLight);
 
     const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.6);
     fillLight.position.set(45, 35, 55);
     scene.add(fillLight);
 
-    // 6. Base Ground Plane (Civil Site Grade at y = 0)
+    // Base Ground Plane
     const groundGeo = new THREE.PlaneGeometry(380, 380, 32, 32);
     groundGeo.rotateX(-Math.PI / 2);
-    const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b,
-      roughness: 0.92,
-      metalness: 0.08,
-    });
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.92 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // Engineering Coordinate Grid
     const gridHelper = new THREE.GridHelper(320, 64, 0x334155, 0x1e293b);
     gridHelper.position.y = 0.02;
     scene.add(gridHelper);
 
-    // 7. Excavation Pit Assembly (Depth y = -5)
-    const pitGroup = new THREE.Group();
-    pitGroup.name = 'pitGroup';
+    // ================= 1. EXCAVATION SCENE ROOT =================
+    const excavationRoot = new THREE.Group();
+    excavationRoot.name = 'excavationRoot';
+    excavationRootRef.current = excavationRoot;
 
-    // Outer Berm
-    const bermGeo = new THREE.RingGeometry(18, 34, 32);
-    bermGeo.rotateX(-Math.PI / 2);
-    const bermMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.95 });
-    const berm = new THREE.Mesh(bermGeo, bermMat);
-    berm.position.set(0, 0.04, 0);
-    berm.receiveShadow = true;
-    pitGroup.add(berm);
-
-    // Pit Floor
-    const pitFloorGeo = new THREE.BoxGeometry(30, 0.5, 26);
-    const pitFloorMat = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.9 });
-    const pitFloor = new THREE.Mesh(pitFloorGeo, pitFloorMat);
+    // Pit Berm & Floor
+    const pitFloor = new THREE.Mesh(
+      new THREE.BoxGeometry(30, 0.5, 26),
+      new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.9 })
+    );
     pitFloor.position.set(0, -5, 0);
     pitFloor.receiveShadow = true;
-    pitGroup.add(pitFloor);
+    excavationRoot.add(pitFloor);
 
     // Pit Slopes
     const benchMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.95 });
     for (let side = -1; side <= 1; side += 2) {
-      const slopeGeo = new THREE.BoxGeometry(30, 5, 2);
-      const slope = new THREE.Mesh(slopeGeo, benchMat);
+      const slope = new THREE.Mesh(new THREE.BoxGeometry(30, 5, 2), benchMat);
       slope.position.set(0, -2.5, side * 13);
       slope.rotation.x = side * (Math.PI / 6);
-      slope.receiveShadow = true;
-      pitGroup.add(slope);
-    }
-    for (let side = -1; side <= 1; side += 2) {
-      const slopeGeo = new THREE.BoxGeometry(2, 5, 26);
-      const slope = new THREE.Mesh(slopeGeo, benchMat);
-      slope.position.set(side * 15, -2.5, 0);
-      slope.rotation.z = -side * (Math.PI / 6);
-      slope.receiveShadow = true;
-      pitGroup.add(slope);
+      excavationRoot.add(slope);
     }
 
-    // Earthen Ramp Embankment (Physical slope linking pit floor y = -5 to surface y = 0)
-    const rampSlopeGeo = new THREE.BoxGeometry(9, 0.8, 18);
-    const rampSlopeMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.9 });
-    const rampSlope = new THREE.Mesh(rampSlopeGeo, rampSlopeMat);
-    rampSlope.position.set(17, -2.5, 5);
-    rampSlope.rotation.y = -Math.PI / 8;
-    rampSlope.rotation.x = Math.PI / 10;
-    rampSlope.receiveShadow = true;
-    pitGroup.add(rampSlope);
-
-    // 8. Dynamic In-Situ Soil Block (Excavated in real-time)
+    // Dynamic Soil Block
     const soilBlockGeo = new THREE.BoxGeometry(20, 6, 16);
-    soilBlockGeo.translate(0, 3, 0); // Pivot at bottom
-
-    const soilMat = new THREE.MeshStandardMaterial({
-      color: 0x92400e,
-      roughness: 0.92,
-      metalness: 0.05,
-    });
+    soilBlockGeo.translate(0, 3, 0);
+    const soilMat = new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.92 });
     const soilBlock = new THREE.Mesh(soilBlockGeo, soilMat);
     soilBlock.position.set(-2, -5, 0);
     soilBlock.castShadow = true;
-    soilBlock.receiveShadow = true;
     soilBlockMeshRef.current = soilBlock;
-    pitGroup.add(soilBlock);
+    excavationRoot.add(soilBlock);
 
-    scene.add(pitGroup);
-
-    // 9. Closed Haul Road Ribbon following the Circuit
+    // Haul Road
     const haulCurve = new THREE.CatmullRomCurve3(HAUL_WAYPOINTS, true, 'catmullrom', 0.5);
-
-    // Roadway Bed Mesh
-    const roadGroup = new THREE.Group();
-    const roadGeo = new THREE.TubeGeometry(haulCurve, 140, 3.4, 4, true);
-    const roadMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.88 });
-    const road = new THREE.Mesh(roadGeo, roadMat);
+    const road = new THREE.Mesh(
+      new THREE.TubeGeometry(haulCurve, 140, 3.4, 4, true),
+      new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.88 })
+    );
     road.scale.set(1, 0.03, 1);
     road.receiveShadow = true;
-    roadGroup.add(road);
+    excavationRoot.add(road);
 
-    // Orange Safety Guide Delineators along Haul Road
-    const coneGeo = new THREE.ConeGeometry(0.35, 0.85, 8);
-    const coneMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.4 });
-    for (let c = 0; c < 24; c++) {
-      const u = c / 24;
-      const pt = haulCurve.getPointAt(u);
-      const tangent = haulCurve.getTangentAt(u).normalize();
-      const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
-
-      const coneL = new THREE.Mesh(coneGeo, coneMat);
-      coneL.position.copy(pt).addScaledVector(normal, 2.6);
-      coneL.position.y += 0.4;
-      roadGroup.add(coneL);
-
-      const coneR = new THREE.Mesh(coneGeo, coneMat);
-      coneR.position.copy(pt).addScaledVector(normal, -2.6);
-      coneR.position.y += 0.4;
-      roadGroup.add(coneR);
-    }
-    scene.add(roadGroup);
-
-    // 10. Spoil Disposal Pile (Grows taller as trucks dump)
+    // Spoil Pile
     const spoilGeo = new THREE.ConeGeometry(14, 9, 18);
     spoilGeo.translate(0, 4.5, 0);
-    const spoilMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.95 });
-    const spoilPile = new THREE.Mesh(spoilGeo, spoilMat);
+    const spoilPile = new THREE.Mesh(spoilGeo, benchMat);
     spoilPile.position.set(65, 0, 45);
     spoilPile.scale.set(0.3, 0.2, 0.3);
     spoilPile.castShadow = true;
-    spoilPile.receiveShadow = true;
     spoilPileMeshRef.current = spoilPile;
-    scene.add(spoilPile);
+    excavationRoot.add(spoilPile);
 
-    // 11. Heavy Excavator 3D Model
+    // Excavator Group
     const excavatorGroup = new THREE.Group();
-    excavatorGroup.position.set(-6, -5, 0); // Positioned inside pit beside soil block
-    excavatorGroupRef.current = excavatorGroup;
+    excavatorGroup.position.set(-6, -5, 0);
 
-    const trackMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.7, metalness: 0.6 });
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4, metalness: 0.3 }); // Komatsu/Cat yellow
-    const blackMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6, metalness: 0.5 });
-    const metalMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.3, metalness: 0.8 });
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4, metalness: 0.3 });
+    const blackMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.6 });
 
-    // Crawler Tracks
     for (const side of [-1.8, 1.8]) {
-      const track = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.3, 6.2), trackMat);
+      const track = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.3, 6.2), blackMat);
       track.position.set(side, 0.7, 0);
       track.castShadow = true;
       excavatorGroup.add(track);
-
-      for (const zSp of [2.7, -2.7]) {
-        const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.25, 12), blackMat);
-        sp.rotation.z = Math.PI / 2;
-        sp.position.set(side, 0.7, zSp);
-        excavatorGroup.add(sp);
-      }
     }
 
-    // Carbody Hub
-    const carbody = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.8, 3.2), blackMat);
-    carbody.position.set(0, 1.1, 0);
-    excavatorGroup.add(carbody);
-
-    // Slewing Upper Carriage
     const slewGroup = new THREE.Group();
     slewGroup.position.set(0, 1.6, 0);
     excavatorSlewRef.current = slewGroup;
 
-    // Engine House & Counterweight
     const house = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.0, 4.2), bodyMat);
     house.position.set(0, 1.1, -0.6);
     house.castShadow = true;
     slewGroup.add(house);
 
-    const cw = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.8, 1.2), blackMat);
-    cw.position.set(0, 1.0, -2.4);
-    cw.castShadow = true;
-    slewGroup.add(cw);
-
-    // Operator Cab
-    const cab = new THREE.Mesh(
-      new THREE.BoxGeometry(1.4, 2.2, 2.2),
-      new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.2, metalness: 0.1 })
-    );
-    cab.position.set(-1.1, 1.4, 1.0);
-    cab.castShadow = true;
-    slewGroup.add(cab);
-
-    // Cab Glass Windshield
-    const glass = new THREE.Mesh(
-      new THREE.BoxGeometry(1.3, 1.2, 0.1),
-      new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.1, transparent: true, opacity: 0.75 })
-    );
-    glass.position.set(-1.1, 1.5, 2.12);
-    slewGroup.add(glass);
-
-    // Exhaust Stack
-    const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.4, 8), metalMat);
-    exhaust.position.set(1.2, 2.6, -1.5);
-    slewGroup.add(exhaust);
-
-    // Articulated Boom Pivot
     const boomGroup = new THREE.Group();
     boomGroup.position.set(0.6, 1.4, 1.6);
     boomRef.current = boomGroup;
@@ -687,12 +464,6 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     boomMesh.castShadow = true;
     boomGroup.add(boomMesh);
 
-    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 4.2, 8), metalMat);
-    cyl.position.set(0, 1.2, 1.4);
-    cyl.rotation.x = -Math.PI / 4.5;
-    boomGroup.add(cyl);
-
-    // Dipper Stick Pivot
     const stickGroup = new THREE.Group();
     stickGroup.position.set(0, 4.8, 5.0);
     stickRef.current = stickGroup;
@@ -703,7 +474,6 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     stickMesh.castShadow = true;
     stickGroup.add(stickMesh);
 
-    // Bucket Pivot
     const bucketGroup = new THREE.Group();
     bucketGroup.position.set(0, -3.2, 3.2);
     bucketRef.current = bucketGroup;
@@ -713,28 +483,14 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     bucketMesh.castShadow = true;
     bucketGroup.add(bucketMesh);
 
-    // Bucket Teeth
-    const teeth = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.2, 0.4), metalMat);
-    teeth.position.set(0, -0.9, 0.95);
-    bucketGroup.add(teeth);
-
     stickGroup.add(bucketGroup);
     boomGroup.add(stickGroup);
     slewGroup.add(boomGroup);
     excavatorGroup.add(slewGroup);
-    scene.add(excavatorGroup);
+    excavationRoot.add(excavatorGroup);
 
-    // 12. Dump Trucks Fleet Group
-    const trucksGroup = new THREE.Group();
-    trucksGroup.name = 'trucksGroup';
-    trucksGroupRef.current = trucksGroup;
-    scene.add(trucksGroup);
-
-    // Populate initial fleet
-    syncTruckFleet(configRef.current.machine.truckCount, configRef.current.machine.truckCapacityM3);
-
-    // 13. Dust Particle System at Dig Face
-    const dustCount = 160;
+    // Dust particles
+    const dustCount = 120;
     const dustGeo = new THREE.BufferGeometry();
     const dustPos = new Float32Array(dustCount * 3);
     for (let i = 0; i < dustCount; i++) {
@@ -743,43 +499,384 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
       dustPos[i * 3 + 2] = (Math.random() - 0.5) * 5;
     }
     dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-    const dustMat = new THREE.PointsMaterial({
-      color: 0xd97706,
-      size: 0.35,
-      transparent: true,
-      opacity: 0.5,
-    });
-    const dust = new THREE.Points(dustGeo, dustMat);
+    const dust = new THREE.Points(
+      dustGeo,
+      new THREE.PointsMaterial({ color: 0xd97706, size: 0.35, transparent: true, opacity: 0.5 })
+    );
     dust.position.set(-6, -4, 0);
-    scene.add(dust);
+    excavationRoot.add(dust);
     dustParticlesRef.current = dust;
 
-    // 14. Visual Construction Site Crew (Spotter, Mandor, Pit Helper)
+    // Trucks Fleet
+    const trucksGroup = new THREE.Group();
+    trucksGroup.name = 'trucksGroup';
+    trucksGroupRef.current = trucksGroup;
+    excavationRoot.add(trucksGroup);
+    syncTruckFleet(configRef.current.machine.truckCount, configRef.current.machine.truckCapacityM3);
+
+    scene.add(excavationRoot);
+
+    // ================= 2. EMBANKMENT SCENE ROOT =================
+    const embankmentRoot = new THREE.Group();
+    embankmentRoot.name = 'embankmentRoot';
+    embankmentRoot.visible = false;
+    embankmentRootRef.current = embankmentRoot;
+
+    // Embankment Earthen Fill Roadway Corridor
+    const fillRoadGeo = new THREE.BoxGeometry(24, 4.0, 90);
+    fillRoadGeo.translate(0, 2.0, 0);
+    const fillRoadMat = new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.95 });
+    const fillRoad = new THREE.Mesh(fillRoadGeo, fillRoadMat);
+    fillRoad.position.set(0, 0, 0);
+    fillRoad.receiveShadow = true;
+    fillRoad.castShadow = true;
+    fillRoadwayMeshRef.current = fillRoad;
+    embankmentRoot.add(fillRoad);
+
+    // Embankment Slopes
+    const slopeMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.98 });
+    for (const side of [-1, 1]) {
+      const slopeGeo = new THREE.BoxGeometry(6, 4.0, 90);
+      slopeGeo.translate(side * 3, 2.0, 0);
+      const slopeM = new THREE.Mesh(slopeGeo, slopeMat);
+      slopeM.position.set(side * 12, 0, 0);
+      slopeM.rotation.z = side * (Math.PI / 6);
+      embankmentRoot.add(slopeM);
+    }
+
+    // Vibratory Compactor 3D Model (10-12 Ton)
+    const rollerGroup = new THREE.Group();
+    rollerGroup.name = 'vibroRoller';
+    vibroRollerGroupRef.current = rollerGroup;
+
+    // Rear Chassis & Engine Hood
+    const rollerBody = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 2.2, 4.2),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 })
+    );
+    rollerBody.position.set(0, 2.4, -1.8);
+    rollerBody.castShadow = true;
+    rollerGroup.add(rollerBody);
+
+    // Operator ROPS Canopy
+    const ropsCanopy = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 0.15, 2.2),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 })
+    );
+    ropsCanopy.position.set(0, 4.8, -1.8);
+    rollerGroup.add(ropsCanopy);
+
+    // Flashing Beacon on Canopy
+    const beacon = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.12, 0.25, 8),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xf59e0b, emissiveIntensity: 2.0 })
+    );
+    beacon.position.set(0, 5.0, -1.8);
+    rollerGroup.add(beacon);
+
+    // Front Vibratory Steel Drum
+    const drumGeo = new THREE.CylinderGeometry(1.2, 1.2, 2.8, 20);
+    drumGeo.rotateZ(Math.PI / 2);
+    const drumMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.35, metalness: 0.8 });
+    const drum = new THREE.Mesh(drumGeo, drumMat);
+    drum.position.set(0, 1.2, 2.2);
+    drum.castShadow = true;
+    vibroDrumRef.current = drum;
+    rollerGroup.add(drum);
+
+    // Rear Rubber Tires
+    for (const side of [-1.5, 1.5]) {
+      const tire = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.1, 1.1, 0.7, 16),
+        new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.9 })
+      );
+      tire.rotateZ(Math.PI / 2);
+      tire.position.set(side, 1.1, -2.4);
+      rollerGroup.add(tire);
+    }
+
+    rollerGroup.position.set(2, 4.0, 0);
+    embankmentRoot.add(rollerGroup);
+
+    // Compactor Dust Puff System
+    const rDustGeo = new THREE.BufferGeometry();
+    const rDustPos = new Float32Array(80 * 3);
+    for (let i = 0; i < 80; i++) {
+      rDustPos[i * 3] = (Math.random() - 0.5) * 3.5;
+      rDustPos[i * 3 + 1] = Math.random() * 1.5;
+      rDustPos[i * 3 + 2] = (Math.random() - 0.5) * 2.5;
+    }
+    rDustGeo.setAttribute('position', new THREE.BufferAttribute(rDustPos, 3));
+    const rDust = new THREE.Points(
+      rDustGeo,
+      new THREE.PointsMaterial({ color: 0xd97706, size: 0.3, transparent: true, opacity: 0.4 })
+    );
+    rDust.position.set(2, 4.2, 2.2);
+    rollerDustRef.current = rDust;
+    embankmentRoot.add(rDust);
+
+    // Bulldozer D65P on fill head
+    const dozer = new THREE.Group();
+    dozer.position.set(-6, 4.0, 30);
+    const dozerBody = new THREE.Mesh(
+      new THREE.BoxGeometry(3.0, 2.2, 4.5),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 })
+    );
+    dozerBody.position.y = 1.8;
+    dozer.add(dozerBody);
+
+    // Big Curved Dozer Blade in front
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(4.2, 1.5, 0.4),
+      new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.6 })
+    );
+    blade.position.set(0, 0.8, 3.2);
+    dozer.add(blade);
+    embankmentRoot.add(dozer);
+
+    scene.add(embankmentRoot);
+
+    // ================= 3. RIGID PAVEMENT SCENE ROOT =================
+    const rigidRoot = new THREE.Group();
+    rigidRoot.name = 'rigidRoot';
+    rigidRoot.visible = false;
+    rigidRootRef.current = rigidRoot;
+
+    // Base Lean Concrete / Subbase
+    const subbase = new THREE.Mesh(
+      new THREE.BoxGeometry(16, 0.4, 110),
+      new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9 })
+    );
+    subbase.position.set(0, 0.2, 0);
+    subbase.receiveShadow = true;
+    rigidRoot.add(subbase);
+
+    // Extending Rigid Concrete Pavement Slab (Tebal 25 cm)
+    const slabGeo = new THREE.BoxGeometry(14, 0.6, 90);
+    slabGeo.translate(0, 0.3, 45); // Extends from Z=0 to Z=+90
+    const slabMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5, metalness: 0.1 });
+    const slab = new THREE.Mesh(slabGeo, slabMat);
+    slab.position.set(0, 0.4, -45);
+    slab.receiveShadow = true;
+    slab.castShadow = true;
+    pavedSlabMeshRef.current = slab;
+    rigidRoot.add(slab);
+
+    // Transverse Saw-cut Contraction Joints along the Slab
+    const jointMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
+    for (let j = 0; j < 18; j++) {
+      const joint = new THREE.Mesh(new THREE.BoxGeometry(14.2, 0.05, 0.12), jointMat);
+      joint.position.set(0, 1.02, -45 + j * 5.0);
+      rigidRoot.add(joint);
+    }
+
+    // Concrete Boom Pump Truck
+    const pumpTruck = new THREE.Group();
+    pumpTruck.position.set(-11, 0, 15);
+    const pumpChassis = new THREE.Mesh(
+      new THREE.BoxGeometry(3.0, 2.0, 9.0),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 })
+    );
+    pumpChassis.position.y = 1.6;
+    pumpTruck.add(pumpChassis);
+
+    // Articulated 4-Section Placing Boom
+    const pumpBoom = new THREE.Group();
+    pumpBoom.position.set(0, 3.2, -1.0);
+    pumpBoomRef.current = pumpBoom;
+
+    const b1 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.5, 9.0),
+      new THREE.MeshStandardMaterial({ color: 0xd97706 })
+    );
+    b1.position.set(4.0, 4.5, 0);
+    b1.rotation.y = Math.PI / 4;
+    b1.rotation.z = -Math.PI / 6;
+    pumpBoom.add(b1);
+
+    // Flexible Tremie Hose hanging over pour face
+    const hose = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.15, 4.5, 8),
+      new THREE.MeshStandardMaterial({ color: 0x18181b })
+    );
+    hose.position.set(7.0, 2.2, 0);
+    pumpBoom.add(hose);
+
+    pumpTruck.add(pumpBoom);
+    rigidRoot.add(pumpTruck);
+
+    // Concrete Transit Mixer Truck with Revolving Drum
+    const mixerTruck = new THREE.Group();
+    mixerTruck.position.set(-11, 0, 2);
+    const mixerCab = new THREE.Mesh(
+      new THREE.BoxGeometry(2.8, 2.4, 2.5),
+      new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 })
+    );
+    mixerCab.position.set(0, 1.8, 3.2);
+    mixerTruck.add(mixerCab);
+
+    // Revolving Angled Mixer Drum
+    const drumMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.6, 0.9, 5.2, 16),
+      new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.35 })
+    );
+    drumMesh.position.set(0, 2.6, -1.2);
+    drumMesh.rotation.x = Math.PI / 5;
+    mixerDrumMeshRef.current = drumMesh;
+    mixerTruck.add(drumMesh);
+
+    rigidRoot.add(mixerTruck);
+    scene.add(rigidRoot);
+
+    // ================= 4. U-DITCH PRECAST SCENE ROOT =================
+    const uditchRoot = new THREE.Group();
+    uditchRoot.name = 'uditchRoot';
+    uditchRoot.visible = false;
+    uditchRootRef.current = uditchRoot;
+
+    // Roadway alongside Trench
+    const pavedRoad = new THREE.Mesh(
+      new THREE.BoxGeometry(18, 0.4, 110),
+      new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.88 })
+    );
+    pavedRoad.position.set(10, 0.2, 0);
+    uditchRoot.add(pavedRoad);
+
+    // Drainage Trench Channel (Depth y = -2.2)
+    const trenchFloor = new THREE.Mesh(
+      new THREE.BoxGeometry(3.6, 0.4, 90),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.95 }) // Sand bedding
+    );
+    trenchFloor.position.set(-6, -2.0, 0);
+    uditchRoot.add(trenchFloor);
+
+    // Placed Precast U-Ditch Units Group
+    const placedUDitches = new THREE.Group();
+    uditchTrenchPlacedRef.current = placedUDitches;
+
+    const concreteUChannelMat = new THREE.MeshStandardMaterial({
+      color: 0xcbd5e1,
+      roughness: 0.6,
+      metalness: 0.1,
+    });
+
+    // Helper to generate a hollow precast U-channel
+    const createUChannelSegment = (zPos: number) => {
+      const uSeg = new THREE.Group();
+      uSeg.position.set(-6, -1.8, zPos);
+
+      // Bottom slab
+      const bottom = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.3, 1.15), concreteUChannelMat);
+      bottom.position.y = 0.15;
+      uSeg.add(bottom);
+
+      // Left Wall
+      const wallL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.6, 1.15), concreteUChannelMat);
+      wallL.position.set(-0.85, 0.95, 0);
+      uSeg.add(wallL);
+
+      // Right Wall
+      const wallR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.6, 1.15), concreteUChannelMat);
+      wallR.position.set(0.85, 0.95, 0);
+      uSeg.add(wallR);
+
+      return uSeg;
+    };
+
+    // Pre-populate initial laid segments
+    for (let u = 0; u < 28; u++) {
+      const seg = createUChannelSegment(-40 + u * 1.25);
+      placedUDitches.add(seg);
+    }
+    uditchRoot.add(placedUDitches);
+
+    // Mobile Crane 25 Ton (Positioned on the road bed)
+    const craneGroup = new THREE.Group();
+    craneGroup.position.set(3, 0.4, 0);
+
+    // Crane Carrier & Outriggers
+    const carrier = new THREE.Mesh(
+      new THREE.BoxGeometry(3.2, 1.8, 10.5),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 })
+    );
+    carrier.position.y = 1.2;
+    craneGroup.add(carrier);
+
+    // Outrigger Beams
+    for (const zSide of [-4.0, 4.0]) {
+      for (const xSide of [-2.4, 2.4]) {
+        const outrigger = new THREE.Mesh(
+          new THREE.BoxGeometry(1.6, 0.4, 0.4),
+          new THREE.MeshStandardMaterial({ color: 0x18181b })
+        );
+        outrigger.position.set(xSide, 0.5, zSide);
+        craneGroup.add(outrigger);
+      }
+    }
+
+    // Crane Slewing Superstructure
+    const craneSlew = new THREE.Group();
+    craneSlew.position.set(0, 2.4, -1.0);
+    craneSlewRef.current = craneSlew;
+
+    const craneCab = new THREE.Mesh(
+      new THREE.BoxGeometry(1.4, 1.8, 2.2),
+      new THREE.MeshStandardMaterial({ color: 0x0284c7 })
+    );
+    craneCab.position.set(-1.0, 0.9, 0.5);
+    craneSlew.add(craneCab);
+
+    // Telescopic Boom
+    const craneBoom = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 0.8, 14.0),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.3 })
+    );
+    craneBoom.position.set(0, 4.5, -3.5);
+    craneBoom.rotation.x = -Math.PI / 3.5;
+    craneSlew.add(craneBoom);
+
+    // Suspended Hook & Slung U-Ditch block
+    const hookGroup = new THREE.Group();
+    hookGroup.position.set(0, 1.5, -9.5);
+    craneHookBlockRef.current = hookGroup;
+
+    // Hoist Cable
+    const cable = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04, 0.04, 6.0, 6),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8 })
+    );
+    cable.position.y = 3.0;
+    hookGroup.add(cable);
+
+    // 4-Leg Wire Rope Sling holding U-Ditch
+    const slungUDitch = createUChannelSegment(0);
+    slungUDitch.position.set(0, 0, 0);
+    hookGroup.add(slungUDitch);
+
+    craneSlew.add(hookGroup);
+    craneGroup.add(craneSlew);
+    uditchRoot.add(craneGroup);
+
+    scene.add(uditchRoot);
+
+    // ================= SITE WORKERS =================
     const workersGroup = new THREE.Group();
     workersGroup.name = 'workersGroup';
 
-    // Spotter directing truck traffic near pit ramp crest
     const spotter = createWorkerFigure('spotter');
     spotter.position.set(20.5, 0, 12.5);
     spotter.rotation.y = -Math.PI / 4;
     workersGroup.add(spotter);
     const spotterFlagArm = spotter.getObjectByName('flagArm') as THREE.Group | null;
 
-    // Mandor inspecting excavation from the berm edge with clipboard
     const mandor = createWorkerFigure('mandor');
     mandor.position.set(-11, 0, 9);
     mandor.rotation.y = Math.PI / 3.2;
     workersGroup.add(mandor);
 
-    // Pit Helper near pit floor
-    const helper = createWorkerFigure('helper');
-    helper.position.set(-1, -5, -6);
-    helper.rotation.y = Math.PI / 8;
-    workersGroup.add(helper);
-
     scene.add(workersGroup);
 
-    // 15. Smooth 60 FPS RequestAnimationFrame Loop
+    // ================= RENDER & ANIMATION LOOP =================
     const clock = new THREE.Clock();
     const loadingSpotPos = new THREE.Vector3(2, -5, 0);
     const lookTarget = new THREE.Vector3();
@@ -789,163 +886,203 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
       const delta = clock.getDelta();
       const time = clock.getElapsedTime();
 
-      // Animate Spotter flag waving to direct truck traffic
       if (spotterFlagArm) {
         spotterFlagArm.rotation.z = -Math.PI / 4 + Math.sin(time * 3.5) * 0.22;
       }
 
       const currentSim = simStateRef.current;
       const currentCfg = configRef.current;
+      const act = currentCfg.scope.activity;
       const isPlaying = currentSim.isPlaying;
       const speedMult = currentSim.speedMultiplier;
 
-      // Real-time speed-adjusted cycle rate
-      // At 1x speed: ~22s per loop for 4.5km; at 5x: ~4.4s; at 20x: ~1.1s
-      const haulDist = currentCfg.scope.haulDistanceKm;
-      const loopDurationSec = Math.max(6, (haulDist * 3.2 + 10) / speedMult);
-      const cycleRate = 1.0 / loopDurationSec;
-
-      if (isPlaying) {
-        haulClockRef.current += delta * cycleRate;
+      // Visibility switching based on active civil work package
+      if (excavationRootRef.current) {
+        excavationRootRef.current.visible = act === 'excavation' || act === 'concrete';
+      }
+      if (embankmentRootRef.current) {
+        embankmentRootRef.current.visible = act === 'embankment';
+      }
+      if (rigidRootRef.current) {
+        rigidRootRef.current.visible = act === 'rigid_pavement';
+      }
+      if (uditchRootRef.current) {
+        uditchRootRef.current.visible = act === 'uditch';
       }
 
-      // Track if any truck in the fleet is currently stationed at Point A (loading spot)
-      let truckInLoadingZone = false;
+      // ================= 1. EXCAVATION ANIMATIONS =================
+      if (act === 'excavation' || act === 'concrete') {
+        const haulDist = currentCfg.scope.haulDistanceKm;
+        const loopDurationSec = Math.max(6, (haulDist * 3.2 + 10) / speedMult);
+        const cycleRate = 1.0 / loopDurationSec;
 
-      // Animate Dump Truck Fleet along the closed CatmullRomCurve3 loop
-      if (trucksGroupRef.current) {
-        const truckList = trucksGroupRef.current.children;
-        const nTrucks = truckList.length;
+        if (isPlaying) {
+          haulClockRef.current += delta * cycleRate;
+        }
 
-        for (let idx = 0; idx < nTrucks; idx++) {
-          const tr = truckList[idx];
-          // Evenly space fleet along the haul loop
-          const uOffset = idx / nTrucks;
-          const u = (haulClockRef.current + uOffset) % 1.0;
+        let truckInLoadingZone = false;
 
-          // 1. Position on curve
-          const pos = haulCurve.getPointAt(u);
-          tr.position.copy(pos);
+        if (trucksGroupRef.current) {
+          const truckList = trucksGroupRef.current.children;
+          const nTrucks = truckList.length;
 
-          // 2. Tangent & Headlights heading orientation
-          const tangent = haulCurve.getTangentAt(u).normalize();
-          lookTarget.copy(pos).add(tangent);
-          tr.lookAt(lookTarget);
+          for (let idx = 0; idx < nTrucks; idx++) {
+            const tr = truckList[idx];
+            const uOffset = idx / nTrucks;
+            const u = (haulClockRef.current + uOffset) % 1.0;
 
-          // 3. Dump bed & soil payload mechanics
-          const bed = tr.getObjectByName('bedPivot');
-          const soil = tr.getObjectByName('soilInBed');
+            const pos = haulCurve.getPointAt(u);
+            tr.position.copy(pos);
 
-          // Check distance to loading spot beside excavator
-          const distToLoading = pos.distanceTo(loadingSpotPos);
-          const isAtSpot = distToLoading < 6.0;
+            const tangent = haulCurve.getTangentAt(u).normalize();
+            lookTarget.copy(pos).add(tangent);
+            tr.lookAt(lookTarget);
 
-          if (isAtSpot) {
-            truckInLoadingZone = true;
+            const bed = tr.getObjectByName('bedPivot');
+            const soil = tr.getObjectByName('soilInBed');
+
+            const distToLoading = pos.distanceTo(loadingSpotPos);
+            if (distToLoading < 6.0) {
+              truckInLoadingZone = true;
+            }
+
+            if (u < 0.12) {
+              if (bed) bed.rotation.x = 0;
+              if (soil) soil.visible = true;
+            } else if (u < 0.46) {
+              if (bed) bed.rotation.x = 0;
+              if (soil) soil.visible = true;
+            } else if (u >= 0.46 && u <= 0.58) {
+              const dumpP = (u - 0.46) / 0.12;
+              const tiltAngle = Math.sin(dumpP * Math.PI) * (Math.PI / 4.0);
+              if (bed) bed.rotation.x = -tiltAngle;
+              if (soil) soil.visible = dumpP < 0.45;
+            } else {
+              if (bed) bed.rotation.x = 0;
+              if (soil) soil.visible = false;
+            }
           }
+        }
 
-          // Phasing along the loop:
-          // [0.0 - 0.12]: Loading Spot A (Beside Excavator)
-          // [0.12 - 0.46]: Loaded haul trip up ramp to spoil pile
-          // [0.46 - 0.58]: Spoil Disposal Spot D (Tilting bed up to 45 deg, soil emptied)
-          // [0.58 - 1.0]: Empty return trip down ramp to Pit
-          if (u < 0.12) {
-            // Loading at pit
-            if (bed) bed.rotation.x = 0;
-            if (soil) soil.visible = true;
-          } else if (u < 0.46) {
-            // Hauling loaded
-            if (bed) bed.rotation.x = 0;
-            if (soil) soil.visible = true;
-          } else if (u >= 0.46 && u <= 0.58) {
-            // Dumping at spoil area
-            const dumpP = (u - 0.46) / 0.12;
-            // Tilt bed up around X-axis (up to ~45 degrees)
-            const tiltAngle = Math.sin(dumpP * Math.PI) * (Math.PI / 4.0);
-            if (bed) bed.rotation.x = -tiltAngle;
-            // Soil falls out into spoil pile midway through tilt
-            if (soil) {
-              soil.visible = dumpP < 0.45;
+        setActiveTrucksInSpot(truckInLoadingZone);
+
+        // Excavator Kinematics
+        if (excavatorSlewRef.current && boomRef.current && stickRef.current && bucketRef.current) {
+          if (isPlaying && truckInLoadingZone) {
+            const digCycleSec = Math.max(0.3, 3.2 / speedMult);
+            digClockRef.current += delta / digCycleSec;
+            const digPhase = digClockRef.current % 1.0;
+
+            if (digPhase < 0.4) {
+              const p = digPhase / 0.4;
+              excavatorSlewRef.current.rotation.y = THREE.MathUtils.lerp(-0.3, -1.1, Math.sin(p * Math.PI * 0.5));
+              boomRef.current.rotation.x = -0.2 - Math.sin(p * Math.PI) * 0.35;
+              stickRef.current.rotation.x = 0.3 + Math.sin(p * Math.PI) * 0.4;
+              bucketRef.current.rotation.x = 0.2 + p * 0.9;
+            } else if (digPhase < 0.6) {
+              const p = (digPhase - 0.4) / 0.2;
+              excavatorSlewRef.current.rotation.y = THREE.MathUtils.lerp(-1.1, 1.4, p);
+              boomRef.current.rotation.x = THREE.MathUtils.lerp(-0.2, 0.2, p);
+              stickRef.current.rotation.x = THREE.MathUtils.lerp(0.7, -0.1, p);
+              bucketRef.current.rotation.x = 1.1;
+            } else if (digPhase < 0.8) {
+              const p = (digPhase - 0.6) / 0.2;
+              excavatorSlewRef.current.rotation.y = 1.4;
+              boomRef.current.rotation.x = 0.2 - Math.sin(p * Math.PI) * 0.15;
+              stickRef.current.rotation.x = -0.1 + p * 0.3;
+              bucketRef.current.rotation.x = THREE.MathUtils.lerp(1.1, -0.4, p);
+            } else {
+              const p = (digPhase - 0.8) / 0.2;
+              excavatorSlewRef.current.rotation.y = THREE.MathUtils.lerp(1.4, -0.3, p);
+              boomRef.current.rotation.x = THREE.MathUtils.lerp(0.1, -0.2, p);
+              stickRef.current.rotation.x = THREE.MathUtils.lerp(0.2, 0.3, p);
+              bucketRef.current.rotation.x = THREE.MathUtils.lerp(-0.4, 0.2, p);
+            }
+
+            if (dustParticlesRef.current) {
+              dustParticlesRef.current.visible = true;
+              dustParticlesRef.current.rotation.y += delta * 1.5;
             }
           } else {
-            // Returning empty
-            if (bed) bed.rotation.x = 0;
-            if (soil) soil.visible = false;
+            excavatorSlewRef.current.rotation.y = THREE.MathUtils.lerp(excavatorSlewRef.current.rotation.y, 0.2, delta * 4.0);
+            boomRef.current.rotation.x = THREE.MathUtils.lerp(boomRef.current.rotation.x, -0.15, delta * 4.0);
+            stickRef.current.rotation.x = THREE.MathUtils.lerp(stickRef.current.rotation.x, 0.2, delta * 4.0);
+            bucketRef.current.rotation.x = THREE.MathUtils.lerp(bucketRef.current.rotation.x, 0.3, delta * 4.0);
+            if (dustParticlesRef.current) dustParticlesRef.current.visible = false;
           }
         }
       }
 
-      isTruckLoadingRef.current = truckInLoadingZone;
-      setActiveTrucksInSpot(truckInLoadingZone);
+      // ================= 2. EMBANKMENT ANIMATIONS =================
+      if (act === 'embankment') {
+        if (isPlaying) {
+          const rollerCycleSec = Math.max(1.5, 9.0 / speedMult);
+          compactorClockRef.current += delta / rollerCycleSec;
+        }
 
-      // Animate Excavator Kinematics (Dig, Slew, Dump, or Standby Pause)
-      if (excavatorSlewRef.current && boomRef.current && stickRef.current && bucketRef.current) {
-        if (isPlaying && truckInLoadingZone) {
-          // Advance excavator digging clock
-          // One full dig cycle = ~3.2s at 1x speed, scaled by speedMultiplier
-          const digCycleSec = Math.max(0.3, 3.2 / speedMult);
-          digClockRef.current += delta / digCycleSec;
-          const digPhase = digClockRef.current % 1.0;
+        const compPhase = (compactorClockRef.current % 1.0) * Math.PI * 2;
+        const zPos = Math.sin(compPhase) * 28.0; // Drives between Z = -28 and +28
+        const movingForward = Math.cos(compPhase) >= 0;
 
-          // 4-Stage Digging & Loading Kinematics:
-          // 0.00 - 0.40: Cut Face Digging (Slewed to pit face, boom dips, bucket curls into soil bank)
-          // 0.40 - 0.60: Hoisting & Slewing to Truck Bed
-          // 0.60 - 0.80: Discharging Soil into Truck Bed
-          // 0.80 - 1.00: Slewing back to Cut Face
-          if (digPhase < 0.4) {
-            const p = digPhase / 0.4;
-            // Slewed toward cut face
-            excavatorSlewRef.current.rotation.y = THREE.MathUtils.lerp(-0.3, -1.1, Math.sin(p * Math.PI * 0.5));
-            // Boom dips into soil
-            boomRef.current.rotation.x = -0.2 - Math.sin(p * Math.PI) * 0.35;
-            // Dipper stick pulls through bank
-            stickRef.current.rotation.x = 0.3 + Math.sin(p * Math.PI) * 0.4;
-            // Bucket curls upward scooping earth
-            bucketRef.current.rotation.x = 0.2 + p * 0.9;
-          } else if (digPhase < 0.6) {
-            const p = (digPhase - 0.4) / 0.2;
-            // Slew across toward truck bed at Point A (+1.4 rad)
-            excavatorSlewRef.current.rotation.y = THREE.MathUtils.lerp(-1.1, 1.4, p);
-            // Boom lifts high to clear truck side boards
-            boomRef.current.rotation.x = THREE.MathUtils.lerp(-0.2, 0.2, p);
-            stickRef.current.rotation.x = THREE.MathUtils.lerp(0.7, -0.1, p);
-            bucketRef.current.rotation.x = 1.1; // Hold soil curled
-          } else if (digPhase < 0.8) {
-            const p = (digPhase - 0.6) / 0.2;
-            // Hold slew above truck bed
-            excavatorSlewRef.current.rotation.y = 1.4;
-            boomRef.current.rotation.x = 0.2 - Math.sin(p * Math.PI) * 0.15;
-            stickRef.current.rotation.x = -0.1 + p * 0.3;
-            // Bucket uncurls wide to discharge soil into truck
-            bucketRef.current.rotation.x = THREE.MathUtils.lerp(1.1, -0.4, p);
+        if (vibroRollerGroupRef.current) {
+          vibroRollerGroupRef.current.position.z = zPos;
+          vibroRollerGroupRef.current.rotation.y = movingForward ? 0 : Math.PI;
+
+          // Rolling steel drum
+          if (vibroDrumRef.current && isPlaying) {
+            vibroDrumRef.current.rotation.x += delta * (movingForward ? 6.0 : -6.0) * speedMult;
+          }
+        }
+
+        // Dust puffing under drum
+        if (rollerDustRef.current) {
+          rollerDustRef.current.position.z = zPos + (movingForward ? 2.2 : -2.2);
+          rollerDustRef.current.visible = isPlaying;
+          if (isPlaying) rollerDustRef.current.rotation.y += delta * 2.0;
+        }
+      }
+
+      // ================= 3. RIGID PAVEMENT ANIMATIONS =================
+      if (act === 'rigid_pavement') {
+        if (isPlaying) {
+          mixerClockRef.current += delta * 3.5 * speedMult;
+          // Revolving mixer drum
+          if (mixerDrumMeshRef.current) {
+            mixerDrumMeshRef.current.rotation.y += delta * 2.5 * speedMult;
+          }
+
+          // Pump boom gentle vibration
+          if (pumpBoomRef.current) {
+            pumpBoomRef.current.rotation.z = -Math.PI / 6 + Math.sin(time * 6.0) * 0.015;
+          }
+        }
+      }
+
+      // ================= 4. U-DITCH PRECAST ANIMATIONS =================
+      if (act === 'uditch') {
+        if (isPlaying) {
+          const craneCycleSec = Math.max(2.0, 7.5 / speedMult);
+          craneClockRef.current += delta / craneCycleSec;
+        }
+
+        const cranePhase = craneClockRef.current % 1.0;
+
+        if (craneSlewRef.current && craneHookBlockRef.current) {
+          // Crane cycle:
+          // 0.0 - 0.4: Slew toward trench & lower block
+          // 0.4 - 0.6: Seating precast into sand bed
+          // 0.6 - 1.0: Slew back to flatbed truck
+          if (cranePhase < 0.4) {
+            const p = cranePhase / 0.4;
+            craneSlewRef.current.rotation.y = THREE.MathUtils.lerp(0.8, -1.2, p);
+            craneHookBlockRef.current.position.y = THREE.MathUtils.lerp(2.5, -0.6, Math.sin(p * Math.PI));
+          } else if (cranePhase < 0.6) {
+            craneSlewRef.current.rotation.y = -1.2;
+            craneHookBlockRef.current.position.y = -0.6;
           } else {
-            const p = (digPhase - 0.8) / 0.2;
-            // Slew back to pit cut face
-            excavatorSlewRef.current.rotation.y = THREE.MathUtils.lerp(1.4, -0.3, p);
-            boomRef.current.rotation.x = THREE.MathUtils.lerp(0.1, -0.2, p);
-            stickRef.current.rotation.x = THREE.MathUtils.lerp(0.2, 0.3, p);
-            bucketRef.current.rotation.x = THREE.MathUtils.lerp(-0.4, 0.2, p);
-          }
-
-          // Active dust swirling during cut phase
-          if (dustParticlesRef.current) {
-            dustParticlesRef.current.visible = true;
-            dustParticlesRef.current.rotation.y += delta * 1.5;
-          }
-        } else {
-          // Excavator Standby / Idle Pause (Waiting for truck to arrive or simulation paused)
-          // Smoothly relax to neutral ready posture
-          excavatorSlewRef.current.rotation.y = THREE.MathUtils.lerp(
-            excavatorSlewRef.current.rotation.y,
-            0.2,
-            delta * 4.0
-          );
-          boomRef.current.rotation.x = THREE.MathUtils.lerp(boomRef.current.rotation.x, -0.15, delta * 4.0);
-          stickRef.current.rotation.x = THREE.MathUtils.lerp(stickRef.current.rotation.x, 0.2, delta * 4.0);
-          bucketRef.current.rotation.x = THREE.MathUtils.lerp(bucketRef.current.rotation.x, 0.3, delta * 4.0);
-
-          if (dustParticlesRef.current) {
-            dustParticlesRef.current.visible = false;
+            const p = (cranePhase - 0.6) / 0.4;
+            craneSlewRef.current.rotation.y = THREE.MathUtils.lerp(-1.2, 0.8, p);
+            craneHookBlockRef.current.position.y = THREE.MathUtils.lerp(-0.6, 2.5, p);
           }
         }
       }
@@ -956,7 +1093,6 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
 
     animate();
 
-    // 15. Resize Observer
     const handleResize = () => {
       if (!container) return;
       const w = container.clientWidth;
@@ -977,19 +1113,21 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
         container.removeChild(renderer.domElement);
       }
     };
-  }, [cameraPresets.pit, createDumpTruckMesh, syncTruckFleet]);
+  }, [cameraPresets.pit, createDumpTruckMesh, createWorkerFigure, syncTruckFleet]);
 
-  // Synchronize 3D truck fleet dynamically when user moves Fleet Count or Truck Capacity slider
+  // Synchronize 3D truck fleet dynamically
   useEffect(() => {
     syncTruckFleet(config.machine.truckCount, config.machine.truckCapacityM3);
   }, [config.machine.truckCount, config.machine.truckCapacityM3, syncTruckFleet]);
 
-  // Reset truck & excavator positions on simulation reset
+  // Reset positions on simulation reset
   useEffect(() => {
     if (simState.elapsedSimSeconds === 0 && !simState.isPlaying) {
       haulClockRef.current = 0;
       digClockRef.current = 0;
-      isTruckLoadingRef.current = false;
+      compactorClockRef.current = 0;
+      craneClockRef.current = 0;
+      mixerClockRef.current = 0;
       setActiveTrucksInSpot(false);
       if (trucksGroupRef.current) {
         syncTruckFleet(config.machine.truckCount, config.machine.truckCapacityM3);
@@ -997,33 +1135,28 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     }
   }, [simState.elapsedSimSeconds, simState.isPlaying, config.machine.truckCount, config.machine.truckCapacityM3, syncTruckFleet]);
 
-  // Update dynamic soil block height as remaining volume decreases (Progressive Excavation)
+  // Update dynamic meshes as simulation progresses
   useEffect(() => {
-    if (!soilBlockMeshRef.current || !spoilPileMeshRef.current) return;
+    const progress = Math.min(100, Math.max(0, simState.progressPercent)) / 100;
 
-    // Remaining volume ratio: 1.0 down to 0.01
-    const remainRatio = Math.max(0.02, simState.remainingVolumeM3 / Math.max(1, config.scope.volumeM3));
-    soilBlockMeshRef.current.scale.y = remainRatio;
-
-    // Spoil pile grows as volume is excavated
-    const excavatedRatio = 1.0 - remainRatio;
-    const spoilScale = 0.3 + excavatedRatio * 1.8;
-    spoilPileMeshRef.current.scale.set(spoilScale, spoilScale * 0.9, spoilScale);
-  }, [simState.remainingVolumeM3, config.scope.volumeM3]);
-
-  // Color soil block according to selected material
-  useEffect(() => {
-    if (!soilBlockMeshRef.current) return;
-    const mat = soilBlockMeshRef.current.material as THREE.MeshStandardMaterial;
-
-    if (config.scope.materialType === 'tanah_keras') {
-      mat.color.setHex(0x52525b); // Gray rock
-    } else if (config.scope.materialType === 'lempung_basah') {
-      mat.color.setHex(0x713f12); // Deep sticky wet clay
-    } else {
-      mat.color.setHex(0x92400e); // Common earth amber brown
+    // Excavation: soil block shrinking & spoil growing
+    if (soilBlockMeshRef.current && spoilPileMeshRef.current) {
+      const remainRatio = Math.max(0.02, 1.0 - progress);
+      soilBlockMeshRef.current.scale.y = remainRatio;
+      const spoilScale = 0.3 + progress * 1.8;
+      spoilPileMeshRef.current.scale.set(spoilScale, spoilScale * 0.9, spoilScale);
     }
-  }, [config.scope.materialType]);
+
+    // Embankment: roadway fill height & length rising
+    if (fillRoadwayMeshRef.current) {
+      fillRoadwayMeshRef.current.scale.y = 0.2 + progress * 0.8;
+    }
+
+    // Rigid Pavement: paved slab extending forward
+    if (pavedSlabMeshRef.current) {
+      pavedSlabMeshRef.current.scale.z = Math.max(0.05, progress);
+    }
+  }, [simState.progressPercent]);
 
   // Format IDR Currency
   const formatIDR = (val: number) => {
@@ -1054,7 +1187,7 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-amber-400 animate-pulse" />
               <span className="text-xs font-bold text-white uppercase tracking-wider">
-                Live 4D Work Execution
+                {metrics.workPackageTitle}
               </span>
             </div>
             <span
@@ -1073,7 +1206,7 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
           {/* Volume Progress Bar */}
           <div className="space-y-1.5">
             <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Excavation Progress:</span>
+              <span className="text-slate-400">Progres Pelaksanaan:</span>
               <span className="font-mono font-bold text-white">
                 {simState.progressPercent.toFixed(1)}%
               </span>
@@ -1085,8 +1218,12 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
               />
             </div>
             <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-              <span>Excavated: {Math.round(simState.excavatedVolumeM3).toLocaleString()} m³</span>
-              <span>Left: {Math.round(simState.remainingVolumeM3).toLocaleString()} m³</span>
+              <span>
+                Selesai: {Math.round(simState.excavatedVolumeM3).toLocaleString()} {metrics.unitLabel}
+              </span>
+              <span>
+                Sisa: {Math.round(simState.remainingVolumeM3).toLocaleString()} {metrics.unitLabel}
+              </span>
             </div>
           </div>
 
@@ -1097,7 +1234,7 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
               <span className="font-mono font-bold text-white text-xs sm:text-sm">
                 {metrics.dailyOutputM3}
               </span>
-              <span className="text-[9px] text-slate-500 block">m³/day</span>
+              <span className="text-[9px] text-slate-500 block">{metrics.unitLabel}/hari</span>
             </div>
 
             <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2">
@@ -1105,21 +1242,27 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
               <span className="font-mono font-bold text-sky-400 text-xs sm:text-sm">
                 {(simState.elapsedSimSeconds / 3600).toFixed(1)}
               </span>
-              <span className="text-[9px] text-slate-500 block">Hours</span>
+              <span className="text-[9px] text-slate-500 block">Jam</span>
             </div>
 
             <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2">
-              <span className="text-[10px] text-slate-400 block">Truck Rits</span>
-              <span className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
-                {simState.truckRitsCompleted}
+              <span className="text-[10px] text-slate-400 block">
+                {config.scope.activity === 'uditch' ? 'Precast' : 'Rit / Trip'}
               </span>
-              <span className="text-[9px] text-slate-500 block">trips</span>
+              <span className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
+                {config.scope.activity === 'uditch'
+                  ? Math.round(simState.excavatedVolumeM3 / 1.2)
+                  : simState.truckRitsCompleted}
+              </span>
+              <span className="text-[9px] text-slate-500 block">
+                {config.scope.activity === 'uditch' ? 'pcs' : 'rit'}
+              </span>
             </div>
           </div>
 
           {/* Accrued Cost Readout */}
           <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2 flex items-center justify-between text-xs">
-            <span className="text-slate-400">Total Cost Accrued:</span>
+            <span className="text-slate-400">Total Biaya Berjalan:</span>
             <span className="font-mono font-bold text-amber-300">
               {formatIDR(simState.totalCostAccruedIdr)}
             </span>
@@ -1129,7 +1272,9 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
           <div className="flex items-center justify-between text-[11px] bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-slate-800">
             <div className="flex items-center gap-1.5 text-slate-300">
               <HardHat className="w-3.5 h-3.5 text-amber-400" />
-              <span>Crew: <strong className="text-white font-mono">{metrics.totalCrewHeadcount} People</strong></span>
+              <span>
+                Crew: <strong className="text-white font-mono">{metrics.totalCrewHeadcount} Orang</strong>
+              </span>
             </div>
             <span className="font-mono text-[9px] text-amber-300 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-900/50">
               ({metrics.crewBreakdownText})
@@ -1140,12 +1285,32 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
           <div className="flex items-center justify-between text-[11px] bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-slate-800">
             <div className="flex items-center gap-1.5 text-slate-300">
               <Truck className="w-3.5 h-3.5 text-sky-400" />
-              <span>Fleet: {config.machine.truckCount} Active Units</span>
+              <span>
+                {metrics.benchmarks.primaryEquipLabel} & {metrics.benchmarks.secondaryEquipLabel}
+              </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${activeTrucksInSpot ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
-              <span className={`font-mono text-[10px] ${activeTrucksInSpot ? 'text-emerald-400 font-bold' : 'text-amber-400'}`}>
-                {activeTrucksInSpot ? 'EXCAVATOR LOADING' : 'EXCAVATOR STANDBY'}
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  simState.isPlaying
+                    ? config.scope.activity === 'excavation' && activeTrucksInSpot
+                      ? 'bg-emerald-400 animate-ping'
+                      : 'bg-emerald-400'
+                    : 'bg-amber-400'
+                }`}
+              />
+              <span
+                className={`font-mono text-[10px] ${
+                  simState.isPlaying ? 'text-emerald-400 font-bold' : 'text-amber-400'
+                }`}
+              >
+                {simState.isPlaying
+                  ? config.scope.activity === 'excavation'
+                    ? activeTrucksInSpot
+                      ? 'EXCAVATOR LOADING'
+                      : 'FLEET TRANSIT'
+                    : 'SIMULATION ACTIVE'
+                  : 'STANDBY PAUSE'}
               </span>
             </div>
           </div>
@@ -1195,25 +1360,33 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
             <div className="grid grid-cols-2 gap-1.5 text-[11px]">
               <div className="bg-slate-900/80 border border-slate-800/80 rounded-lg p-1.5">
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
-                  <span>🚜 Excavator</span>
+                  <span className="truncate max-w-[90px]">{metrics.benchmarks.primaryEquipLabel}</span>
                   <span className="font-mono text-emerald-400 font-bold">
-                    {metrics.benchmarks.excavatorHourlyQ.toFixed(1)} m³/j
+                    {metrics.benchmarks.primaryEquipOutput.toFixed(1)} {metrics.unitLabel}/j
                   </span>
                 </div>
                 <div className="text-[9px] font-mono text-slate-400 mt-0.5">
-                  Koef: <span className="text-white">{metrics.benchmarks.excavatorCoeffJamPerM3.toFixed(4)}</span> jam/m³
+                  Koef:{' '}
+                  <span className="text-white">
+                    {metrics.benchmarks.primaryEquipCoeff.toFixed(4)}
+                  </span>{' '}
+                  jam/{metrics.unitLabel}
                 </div>
               </div>
 
               <div className="bg-slate-900/80 border border-slate-800/80 rounded-lg p-1.5">
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
-                  <span>🚛 Dump Truck</span>
+                  <span className="truncate max-w-[90px]">{metrics.benchmarks.secondaryEquipLabel}</span>
                   <span className="font-mono text-sky-400 font-bold">
-                    {metrics.benchmarks.truckHourlyQ.toFixed(1)} m³/j
+                    {metrics.benchmarks.secondaryEquipOutput.toFixed(1)} {metrics.unitLabel}/j
                   </span>
                 </div>
                 <div className="text-[9px] font-mono text-slate-400 mt-0.5">
-                  Koef: <span className="text-white">{metrics.benchmarks.truckCoeffJamPerM3.toFixed(4)}</span> jam/m³
+                  Koef:{' '}
+                  <span className="text-white">
+                    {metrics.benchmarks.secondaryEquipCoeff.toFixed(4)}
+                  </span>{' '}
+                  jam/{metrics.unitLabel}
                 </div>
               </div>
 
@@ -1221,11 +1394,15 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
                   <span>👷 Labor Crew</span>
                   <span className="font-mono text-amber-300 font-bold">
-                    {metrics.benchmarks.crewOutputM3PerManDay.toFixed(1)} m³/OH
+                    {metrics.benchmarks.crewOutputM3PerManDay.toFixed(1)} {metrics.unitLabel}/OH
                   </span>
                 </div>
                 <div className="text-[9px] font-mono text-slate-400 mt-0.5">
-                  Koef: <span className="text-white">{metrics.benchmarks.totalLaborCoeffOhPerM3.toFixed(4)}</span> OH/m³
+                  Koef:{' '}
+                  <span className="text-white">
+                    {metrics.benchmarks.totalLaborCoeffOhPerM3.toFixed(4)}
+                  </span>{' '}
+                  OH/{metrics.unitLabel}
                 </div>
               </div>
 
@@ -1233,11 +1410,12 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
                   <span>⛽ Solar Index</span>
                   <span className="font-mono text-violet-400 font-bold">
-                    {metrics.benchmarks.fuelIndexLitersPerM3.toFixed(2)} L/m³
+                    {metrics.benchmarks.fuelIndexLitersPerM3.toFixed(2)} L/{metrics.unitLabel}
                   </span>
                 </div>
                 <div className="text-[9px] font-mono text-slate-400 mt-0.5">
-                  Tipping: <span className="text-white">{metrics.benchmarks.tippingCoeffRitPerM3.toFixed(3)}</span> rit/m³
+                  Standar:{' '}
+                  <span className="text-white">Permen PUPR</span>
                 </div>
               </div>
             </div>
@@ -1247,20 +1425,26 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
               <div className="space-y-1.5 pt-1 border-t border-slate-800/60 text-[10px]">
                 <div className="flex justify-between text-slate-400">
                   <span>A. Tenaga Kerja:</span>
-                  <span className="font-mono text-slate-200">{formatIDR(metrics.benchmarks.subtotalTenagaKerja)}</span>
+                  <span className="font-mono text-slate-200">
+                    {formatIDR(metrics.benchmarks.subtotalTenagaKerja)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-slate-400">
-                  <span>B. Bahan & Solar:</span>
-                  <span className="font-mono text-slate-200">{formatIDR(metrics.benchmarks.subtotalBahan)}</span>
+                  <span>B. Bahan:</span>
+                  <span className="font-mono text-slate-200">
+                    {formatIDR(metrics.benchmarks.subtotalBahan)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-slate-400">
                   <span>C. Peralatan:</span>
-                  <span className="font-mono text-slate-200">{formatIDR(metrics.benchmarks.subtotalPeralatan)}</span>
+                  <span className="font-mono text-slate-200">
+                    {formatIDR(metrics.benchmarks.subtotalPeralatan)}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center pt-1 border-t border-slate-800 font-semibold">
                   <span className="text-emerald-400">Harga Satuan (HSP):</span>
                   <span className="font-mono text-emerald-300 text-xs">
-                    {formatIDR(metrics.benchmarks.totalUnitPricePermenPupr)} / m³
+                    {formatIDR(metrics.benchmarks.totalUnitPricePermenPupr)} / {metrics.unitLabel}
                   </span>
                 </div>
               </div>
@@ -1277,7 +1461,6 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
 
       {/* Simulation Playback & Speed Controls (Bottom Center) */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex flex-wrap items-center gap-2 bg-[#0f172a]/95 backdrop-blur-xl border border-slate-800 px-4 py-2 rounded-2xl shadow-2xl">
-        {/* Play/Pause Button */}
         <button
           onClick={onTogglePlay}
           className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold transition shadow-lg ${
@@ -1299,7 +1482,6 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
           )}
         </button>
 
-        {/* Reset Button */}
         <button
           onClick={onReset}
           className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition"
@@ -1308,7 +1490,6 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
           <RotateCcw className="w-4 h-4" />
         </button>
 
-        {/* Speed Pills */}
         <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5 ml-1">
           <div className="px-2 py-0.5 flex items-center text-slate-500">
             <Gauge className="w-3 h-3 mr-1" />
@@ -1328,14 +1509,12 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
           ))}
         </div>
 
-        {/* Camera Preset Quick Buttons */}
         <div className="hidden sm:flex items-center gap-1 pl-2 border-l border-slate-800">
           <Camera className="w-3.5 h-3.5 text-slate-500 mr-1" />
           {[
-            { key: 'pit', label: 'Pit' },
-            { key: 'excavator', label: 'Excavator' },
-            { key: 'haul', label: 'Haul' },
-            { key: 'spoil', label: 'Spoil' },
+            { key: 'pit', label: 'Overview' },
+            { key: 'equipment', label: 'Equipment' },
+            { key: 'haul', label: 'Workzone' },
             { key: 'topdown', label: '2D Plan' },
           ].map((preset) => (
             <button

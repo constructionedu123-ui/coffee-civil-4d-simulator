@@ -487,13 +487,13 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-amber-400" />
                 <h3 className="font-bold text-white text-xs sm:text-sm uppercase tracking-wider">
-                  Cost Architecture & Unit Rate (Rp / m³)
+                  Cost Architecture & Unit Rate (Rp / {metrics.unitLabel})
                 </h3>
               </div>
               <div className="font-mono text-xs">
                 <span className="text-slate-400">Unit Price: </span>
                 <span className="font-bold text-emerald-400">
-                  {formatIDR(result.unitRateP50)} / m³
+                  {formatIDR(result.unitRateP50)} / {metrics.unitLabel}
                 </span>
               </div>
             </div>
@@ -612,42 +612,46 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({
 
             {/* 4 Core Benchmark Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {/* Excavator Unit Productivity */}
+              {/* Primary Equipment Productivity */}
               <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 space-y-1">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-medium">🚜 Excavator Unit</span>
+                  <span className="text-slate-400 font-medium truncate max-w-[120px]">
+                    {result.benchmarks.primaryEquipLabel}
+                  </span>
                   <span className="text-[9px] font-mono text-sky-400 bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-800">
-                    {config.machine.excavatorModel}
+                    Primary
                   </span>
                 </div>
                 <div className="font-mono text-lg font-bold text-white">
-                  {result.benchmarks.excavatorHourlyQ}{' '}
-                  <span className="text-xs font-normal text-slate-400">m³/jam</span>
+                  {result.benchmarks.primaryEquipOutput}{' '}
+                  <span className="text-xs font-normal text-slate-400">{metrics.unitLabel}/jam</span>
                 </div>
                 <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between pt-1 border-t border-slate-900">
                   <span>Koefisien:</span>
                   <span className="text-amber-300 font-bold">
-                    {result.benchmarks.excavatorCoeffJamPerM3} jam/m³
+                    {result.benchmarks.primaryEquipCoeff} jam/{metrics.unitLabel}
                   </span>
                 </div>
               </div>
 
-              {/* Dump Truck Unit Productivity */}
+              {/* Secondary Equipment Productivity */}
               <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 space-y-1">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-medium">🚛 Dump Truck Unit</span>
+                  <span className="text-slate-400 font-medium truncate max-w-[120px]">
+                    {result.benchmarks.secondaryEquipLabel}
+                  </span>
                   <span className="text-[9px] font-mono text-sky-400 bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-800">
-                    {config.machine.truckCapacityM3} m³
+                    Fleet
                   </span>
                 </div>
                 <div className="font-mono text-lg font-bold text-white">
-                  {result.benchmarks.truckHourlyQ}{' '}
-                  <span className="text-xs font-normal text-slate-400">m³/jam</span>
+                  {result.benchmarks.secondaryEquipOutput}{' '}
+                  <span className="text-xs font-normal text-slate-400">{metrics.unitLabel}/jam</span>
                 </div>
                 <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between pt-1 border-t border-slate-900">
                   <span>Koefisien:</span>
                   <span className="text-amber-300 font-bold">
-                    {result.benchmarks.truckCoeffJamPerM3} jam/m³
+                    {result.benchmarks.secondaryEquipCoeff} jam/{metrics.unitLabel}
                   </span>
                 </div>
               </div>
@@ -662,32 +666,32 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({
                 </div>
                 <div className="font-mono text-lg font-bold text-white">
                   {result.benchmarks.crewOutputM3PerManDay}{' '}
-                  <span className="text-xs font-normal text-slate-400">m³/OH</span>
+                  <span className="text-xs font-normal text-slate-400">{metrics.unitLabel}/OH</span>
                 </div>
                 <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between pt-1 border-t border-slate-900">
                   <span>Koef. Total:</span>
                   <span className="text-amber-300 font-bold">
-                    {result.benchmarks.totalLaborCoeffOhPerM3} OH/m³
+                    {result.benchmarks.totalLaborCoeffOhPerM3} OH/{metrics.unitLabel}
                   </span>
                 </div>
               </div>
 
-              {/* Specific Fuel Consumption */}
+              {/* Specific Fuel / Material Consumption */}
               <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 space-y-1">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-medium">⛽ Fuel Index</span>
+                  <span className="text-slate-400 font-medium">⛽ Solar Index</span>
                   <span className="text-[9px] font-mono text-violet-400 bg-violet-950/80 px-1.5 py-0.5 rounded border border-violet-800">
-                    {config.scope.haulDistanceKm} km
+                    Permen PUPR
                   </span>
                 </div>
                 <div className="font-mono text-lg font-bold text-white">
                   {result.benchmarks.fuelIndexLitersPerM3}{' '}
-                  <span className="text-xs font-normal text-slate-400">L/m³</span>
+                  <span className="text-xs font-normal text-slate-400">L/{metrics.unitLabel}</span>
                 </div>
                 <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between pt-1 border-t border-slate-900">
-                  <span>Tipping:</span>
+                  <span>Satuan:</span>
                   <span className="text-amber-300 font-bold">
-                    {result.benchmarks.tippingCoeffRitPerM3} rit/m³
+                    Per {metrics.unitLabel}
                   </span>
                 </div>
               </div>
@@ -706,19 +710,19 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({
                 <div className="bg-emerald-950/40 border border-emerald-900/60 rounded-lg p-2">
                   <span className="text-[10px] text-emerald-400 block">P10 (Optimistic)</span>
                   <span className="text-sm sm:text-base font-bold text-white">
-                    {result.outputP10} <span className="text-xs text-slate-400">m³/jam</span>
+                    {result.outputP10} <span className="text-xs text-slate-400">{metrics.unitLabel}/jam</span>
                   </span>
                 </div>
                 <div className="bg-sky-950/50 border border-sky-900/80 rounded-lg p-2">
                   <span className="text-[10px] text-sky-400 block">P50 (Expected)</span>
                   <span className="text-sm sm:text-base font-bold text-sky-300">
-                    {result.outputP50} <span className="text-xs text-slate-400">m³/jam</span>
+                    {result.outputP50} <span className="text-xs text-slate-400">{metrics.unitLabel}/jam</span>
                   </span>
                 </div>
                 <div className="bg-amber-950/40 border border-amber-900/60 rounded-lg p-2">
                   <span className="text-[10px] text-amber-400 block">P90 (Worst-Case)</span>
                   <span className="text-sm sm:text-base font-bold text-white">
-                    {result.outputP90} <span className="text-xs text-slate-400">m³/jam</span>
+                    {result.outputP90} <span className="text-xs text-slate-400">{metrics.unitLabel}/jam</span>
                   </span>
                 </div>
               </div>
@@ -731,7 +735,7 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({
                   Tabel Analisis Harga Satuan Pekerjaan (Permen PUPR Format)
                 </span>
                 <span className="font-mono text-[10px] text-slate-400">
-                  Satuan Pembayaran: 1 m³ Tanah
+                  Satuan Pembayaran: 1 {metrics.unitLabel} ({metrics.workPackageTitle})
                 </span>
               </div>
 
@@ -810,7 +814,7 @@ export const MonteCarloModal: React.FC<MonteCarloModalProps> = ({
                     {/* Grand Total */}
                     <tr className="bg-emerald-950/80 border-t-2 border-emerald-600 text-white font-bold">
                       <td colSpan={4} className="p-2.5 text-right font-sans text-xs">
-                        TOTAL HARGA SATUAN PEKERJAAN (HSP / m³):
+                        TOTAL HARGA SATUAN PEKERJAAN (HSP / {metrics.unitLabel}):
                       </td>
                       <td className="p-2.5 text-right text-emerald-300 text-sm">
                         {formatIDR(result.benchmarks.totalUnitPricePermenPupr)}
