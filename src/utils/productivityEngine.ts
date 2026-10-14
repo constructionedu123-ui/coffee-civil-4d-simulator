@@ -28,8 +28,16 @@ export const DEFAULT_CONFIG: SimulatorConfig = {
     spotTimeMin: 1.5,
   },
   manpower: {
-    dailyCost: 650000,
-    crewDescription: '1 Operator + 1 Mandor + 1 Spotter / Helper',
+    dailyCost: 2070000,
+    crewDescription: '1 Mandor, 6 Operators/Drivers, 4 Field Crew',
+    operatorWage: 250000,
+    driverWage: 200000,
+    mandorCount: 1,
+    mandorWage: 220000,
+    spotterCount: 2,
+    spotterWage: 160000,
+    helperCount: 2,
+    helperWage: 140000,
   },
   materialFuel: {
     fuelPricePerLiter: 18000,
@@ -72,10 +80,68 @@ export function getExcavatorSpecs(model: SimulatorConfig['machine']['excavatorMo
 }
 
 /**
+ * Calculate total daily crew cost across all active site roles
+ */
+export function calculateTotalDailyCrewCost(config: SimulatorConfig): number {
+  const { machine, manpower } = config;
+  const opCount = machine.excavatorCount;
+  const drvCount = machine.truckCount;
+  const mndCount = manpower.mandorCount ?? 1;
+  const sptCount = manpower.spotterCount ?? 2;
+  const hlpCount = manpower.helperCount ?? 2;
+
+  const opWage = manpower.operatorWage ?? 250000;
+  const drvWage = manpower.driverWage ?? 200000;
+  const mndWage = manpower.mandorWage ?? 220000;
+  const sptWage = manpower.spotterWage ?? 160000;
+  const hlpWage = manpower.helperWage ?? 140000;
+
+  return (
+    opCount * opWage +
+    drvCount * drvWage +
+    mndCount * mndWage +
+    sptCount * sptWage +
+    hlpCount * hlpWage
+  );
+}
+
+/**
+ * Calculate site crew headcount statistics and breakdown summary
+ */
+export function calculateTotalCrewHeadcount(config: SimulatorConfig): {
+  total: number;
+  operators: number;
+  drivers: number;
+  mandor: number;
+  spotters: number;
+  helpers: number;
+  summaryText: string;
+} {
+  const operators = config.machine.excavatorCount;
+  const drivers = config.machine.truckCount;
+  const mandor = config.manpower.mandorCount ?? 1;
+  const spotters = config.manpower.spotterCount ?? 2;
+  const helpers = config.manpower.helperCount ?? 2;
+  const total = operators + drivers + mandor + spotters + helpers;
+
+  const summaryText = `${mandor} Mandor, ${operators + drivers} Operators/Drivers, ${spotters + helpers} Field Crew`;
+
+  return {
+    total,
+    operators,
+    drivers,
+    mandor,
+    spotters,
+    helpers,
+    summaryText,
+  };
+}
+
+/**
  * Calculate deterministic productivity & fleet match factor
  */
 export function calculateProductivity(config: SimulatorConfig): ProductivityMetrics {
-  const { scope, machine, manpower, materialFuel, method } = config;
+  const { scope, machine, materialFuel, method } = config;
   const soil = getSoilProperties(scope.materialType);
   const excSpecs = getExcavatorSpecs(machine.excavatorModel);
 
@@ -152,7 +218,9 @@ export function calculateProductivity(config: SimulatorConfig): ProductivityMetr
     machine.excavatorCount * machine.excavatorRentalPerHour +
     machine.truckCount * machine.truckRentalPerHour;
 
-  const hourlyLaborCost = (manpower.dailyCost * machine.excavatorCount) / method.workingHoursPerDay;
+  const totalDailyLaborCost = calculateTotalDailyCrewCost(config);
+  const hourlyLaborCost = totalDailyLaborCost / method.workingHoursPerDay;
+  const crewStats = calculateTotalCrewHeadcount(config);
 
   // Fuel: Excavators + Trucks per hour
   const ritsPerHour = systemHourlyQ / bankCapacityPerTrip;
@@ -196,6 +264,11 @@ export function calculateProductivity(config: SimulatorConfig): ProductivityMetr
     hourlyTippingCost: Math.round(hourlyTippingCost),
     totalEstimatedCostIdr: Math.round(totalEstimatedCostIdr),
     unitRatePerM3: Math.round(unitRatePerM3),
+    totalDailyLaborCost: Math.round(totalDailyLaborCost),
+    totalCrewHeadcount: crewStats.total,
+    crewBreakdownText: crewStats.summaryText,
+    operatorCount: crewStats.operators,
+    driverCount: crewStats.drivers,
   };
 }
 
@@ -214,7 +287,7 @@ function randomNormal(mean = 0, stdev = 1): number {
  * Simulates cycle variations, traffic delays, minor breakdown probabilities, and soil heterogeneity
  */
 export function runMonteCarloSimulation(config: SimulatorConfig, iterations = 1000): MonteCarloResult {
-  const { scope, machine, manpower, materialFuel, method } = config;
+  const { scope, machine, materialFuel, method } = config;
   const soil = getSoilProperties(scope.materialType);
   const excSpecs = getExcavatorSpecs(machine.excavatorModel);
 
@@ -271,7 +344,8 @@ export function runMonteCarloSimulation(config: SimulatorConfig, iterations = 10
     const hourlyRental =
       machine.excavatorCount * machine.excavatorRentalPerHour +
       machine.truckCount * machine.truckRentalPerHour;
-    const hourlyLabor = (manpower.dailyCost * machine.excavatorCount) / method.workingHoursPerDay;
+    const totalDailyLabor = calculateTotalDailyCrewCost(config);
+    const hourlyLabor = totalDailyLabor / method.workingHoursPerDay;
 
     const rits = scope.volumeM3 / bankCap;
     const totalKm = rits * (scope.haulDistanceKm * 2);
@@ -320,7 +394,8 @@ export function runMonteCarloSimulation(config: SimulatorConfig, iterations = 10
       (machine.excavatorCount * machine.excavatorRentalPerHour +
         machine.truckCount * machine.truckRentalPerHour)
   );
-  const manpowerCostP50 = Math.round(p50Days * manpower.dailyCost * machine.excavatorCount);
+  const totalDailyLaborP50 = calculateTotalDailyCrewCost(config);
+  const manpowerCostP50 = Math.round(p50Days * totalDailyLaborP50);
   const ritsP50 = scope.volumeM3 / (machine.truckCapacityM3 / soil.swellFactor);
   const kmP50 = ritsP50 * scope.haulDistanceKm * 2;
   const fuelP50 = Math.round(

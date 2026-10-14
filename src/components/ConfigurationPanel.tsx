@@ -19,6 +19,10 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import {
+  calculateTotalDailyCrewCost,
+  calculateTotalCrewHeadcount,
+} from '../utils/productivityEngine';
 
 interface ConfigurationPanelProps {
   config: SimulatorConfig;
@@ -53,6 +57,10 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const toggleSection = (key: keyof typeof openSections) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  // Dynamic Manpower Calculations
+  const totalDailyCrewCost = calculateTotalDailyCrewCost(config);
+  const crewStats = calculateTotalCrewHeadcount(config);
 
   // Quick Preset Handlers
   const applyPreset = (presetName: string) => {
@@ -554,7 +562,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           )}
         </div>
 
-        {/* 2. MANPOWER (TENAGA KERJA) */}
+        {/* ================= STEP 3: MANPOWER & SITE CREW ================= */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
           <button
             onClick={() => toggleSection('manpower')}
@@ -565,35 +573,268 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                 3
               </span>
               <Users className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Manpower (Crew Cost)</span>
+              <span>Manpower (Crew Cost & Headcount)</span>
             </div>
-            {openSections.manpower ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+            <div className="flex items-center gap-2">
+              <span className="hidden sm:inline-block font-mono text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-800/80 px-2 py-0.5 rounded-full">
+                {crewStats.total} Crew • {formatIDR(totalDailyCrewCost)}/d
+              </span>
+              {openSections.manpower ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+            </div>
           </button>
 
           {openSections.manpower && (
-            <div className="p-3 pt-0 space-y-2 border-t border-slate-800/60 text-[11px]">
-              <div>
-                <label className="text-slate-400 block mb-1">Crew Daily Rate (Operator + Mandor + Spotter):</label>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-400">Rp</span>
-                  <input
-                    type="number"
-                    step={10000}
-                    value={config.manpower.dailyCost}
-                    onChange={(e) =>
-                      onChangeConfig({
-                        ...config,
-                        manpower: { ...config.manpower, dailyCost: Number(e.target.value) },
-                      })
-                    }
-                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-1.5 text-white font-mono text-right"
-                  />
-                  <span className="text-slate-400">/ day</span>
+            <div className="p-3 pt-0 space-y-2.5 border-t border-slate-800/60 text-[11px]">
+              <div className="text-[10px] text-slate-400 bg-slate-950/50 p-2 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                <span>Total Active Site Crew:</span>
+                <span className="font-mono font-bold text-emerald-300">{crewStats.total} Persons on Site</span>
+              </div>
+
+              {/* 1. Heavy Equipment Operators (Auto-synced with Excavator Units) */}
+              <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">🚜</span>
+                    <span className="font-semibold text-white">Operator Alat Berat</span>
+                  </div>
+                  <span className="font-mono font-bold text-sky-400 bg-sky-950/80 border border-sky-800/80 text-[10px] px-2 py-0.5 rounded-md">
+                    {config.machine.excavatorCount} Orang (Auto-Sync)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">Upah Harian:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500">Rp</span>
+                    <input
+                      type="number"
+                      step={5000}
+                      value={config.manpower.operatorWage}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          manpower: { ...config.manpower, operatorWage: Number(e.target.value) || 0 },
+                        })
+                      }
+                      className="w-24 bg-slate-900 border border-slate-700 rounded-lg p-1 text-white font-mono text-right"
+                    />
+                    <span className="text-slate-500">/ hari</span>
+                  </div>
+                </div>
+                <div className="text-[9px] text-slate-500 text-right font-mono">
+                  Subtotal: {formatIDR(config.machine.excavatorCount * config.manpower.operatorWage)} / hari
                 </div>
               </div>
-              <p className="text-[10px] text-slate-500">
-                Includes Operator shift allowance, safety PPE, and daily site coordination fee.
-              </p>
+
+              {/* 2. Dump Truck Drivers (Auto-synced with Truck Fleet) */}
+              <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">🚛</span>
+                    <span className="font-semibold text-white">Driver Dump Truck</span>
+                  </div>
+                  <span className="font-mono font-bold text-sky-400 bg-sky-950/80 border border-sky-800/80 text-[10px] px-2 py-0.5 rounded-md">
+                    {config.machine.truckCount} Orang (Auto-Sync)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">Upah Harian:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500">Rp</span>
+                    <input
+                      type="number"
+                      step={5000}
+                      value={config.manpower.driverWage}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          manpower: { ...config.manpower, driverWage: Number(e.target.value) || 0 },
+                        })
+                      }
+                      className="w-24 bg-slate-900 border border-slate-700 rounded-lg p-1 text-white font-mono text-right"
+                    />
+                    <span className="text-slate-500">/ hari</span>
+                  </div>
+                </div>
+                <div className="text-[9px] text-slate-500 text-right font-mono">
+                  Subtotal: {formatIDR(config.machine.truckCount * config.manpower.driverWage)} / hari
+                </div>
+              </div>
+
+              {/* 3. Mandor / Field Supervisor */}
+              <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">👷</span>
+                    <span className="font-semibold text-white">Mandor / Pengawas</span>
+                  </div>
+                  <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                    {[1, 2, 3].map((cnt) => (
+                      <button
+                        key={cnt}
+                        onClick={() =>
+                          onChangeConfig({
+                            ...config,
+                            manpower: { ...config.manpower, mandorCount: cnt },
+                          })
+                        }
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition ${
+                          config.manpower.mandorCount === cnt
+                            ? 'bg-emerald-500 text-slate-950'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {cnt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">Upah Harian:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500">Rp</span>
+                    <input
+                      type="number"
+                      step={5000}
+                      value={config.manpower.mandorWage}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          manpower: { ...config.manpower, mandorWage: Number(e.target.value) || 0 },
+                        })
+                      }
+                      className="w-24 bg-slate-900 border border-slate-700 rounded-lg p-1 text-white font-mono text-right"
+                    />
+                    <span className="text-slate-500">/ hari</span>
+                  </div>
+                </div>
+                <div className="text-[9px] text-slate-500 text-right font-mono">
+                  Subtotal: {formatIDR(config.manpower.mandorCount * config.manpower.mandorWage)} / hari
+                </div>
+              </div>
+
+              {/* 4. Spotters / Flagmen (Traffic & K3) */}
+              <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">🦺</span>
+                    <div>
+                      <span className="font-semibold text-white block">Spotter / Flagman</span>
+                      <span className="text-[9px] text-slate-500 block">Traffic Pit & Haul Ramp K3</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                    {[1, 2, 3, 4].map((cnt) => (
+                      <button
+                        key={cnt}
+                        onClick={() =>
+                          onChangeConfig({
+                            ...config,
+                            manpower: { ...config.manpower, spotterCount: cnt },
+                          })
+                        }
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition ${
+                          config.manpower.spotterCount === cnt
+                            ? 'bg-amber-500 text-slate-950'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {cnt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">Upah Harian:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500">Rp</span>
+                    <input
+                      type="number"
+                      step={5000}
+                      value={config.manpower.spotterWage}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          manpower: { ...config.manpower, spotterWage: Number(e.target.value) || 0 },
+                        })
+                      }
+                      className="w-24 bg-slate-900 border border-slate-700 rounded-lg p-1 text-white font-mono text-right"
+                    />
+                    <span className="text-slate-500">/ hari</span>
+                  </div>
+                </div>
+                <div className="text-[9px] text-slate-500 text-right font-mono">
+                  Subtotal: {formatIDR(config.manpower.spotterCount * config.manpower.spotterWage)} / hari
+                </div>
+              </div>
+
+              {/* 5. Pekerja / General Helpers */}
+              <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">⛏️</span>
+                    <div>
+                      <span className="font-semibold text-white block">Pekerja / Helper</span>
+                      <span className="text-[9px] text-slate-500 block">Manual Trimming & Pit Cleanup</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                    {[0, 1, 2, 3, 4, 6].map((cnt) => (
+                      <button
+                        key={cnt}
+                        onClick={() =>
+                          onChangeConfig({
+                            ...config,
+                            manpower: { ...config.manpower, helperCount: cnt },
+                          })
+                        }
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition ${
+                          config.manpower.helperCount === cnt
+                            ? 'bg-amber-500 text-slate-950'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {cnt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">Upah Harian:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-500">Rp</span>
+                    <input
+                      type="number"
+                      step={5000}
+                      value={config.manpower.helperWage}
+                      onChange={(e) =>
+                        onChangeConfig({
+                          ...config,
+                          manpower: { ...config.manpower, helperWage: Number(e.target.value) || 0 },
+                        })
+                      }
+                      className="w-24 bg-slate-900 border border-slate-700 rounded-lg p-1 text-white font-mono text-right"
+                    />
+                    <span className="text-slate-500">/ hari</span>
+                  </div>
+                </div>
+                <div className="text-[9px] text-slate-500 text-right font-mono">
+                  Subtotal: {formatIDR(config.manpower.helperCount * config.manpower.helperWage)} / hari
+                </div>
+              </div>
+
+              {/* Total Manpower Summary Card */}
+              <div className="p-3 bg-gradient-to-br from-emerald-950/60 to-slate-900 border border-emerald-800/80 rounded-xl space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300 font-semibold">Total Daily Crew Cost:</span>
+                  <span className="font-mono font-bold text-emerald-400 text-sm">
+                    {formatIDR(totalDailyCrewCost)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                  <span>Active Crew: {crewStats.total} Persons ({crewStats.summaryText})</span>
+                  <span>{formatIDR(Math.round(totalDailyCrewCost / config.method.workingHoursPerDay))}/hr</span>
+                </div>
+              </div>
             </div>
           )}
         </div>

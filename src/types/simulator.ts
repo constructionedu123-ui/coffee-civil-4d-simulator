@@ -25,8 +25,16 @@ export interface MachineConfig {
 }
 
 export interface ManpowerConfig {
-  dailyCost: number; // IDR per crew day
+  dailyCost: number; // Computed total daily crew cost across all on-site roles
   crewDescription: string;
+  operatorWage: number; // Heavy Equipment Operator daily wage (default: 250000, count auto-synced with excavatorCount)
+  driverWage: number; // Dump Truck Driver daily wage (default: 200000, count auto-synced with truckCount)
+  mandorCount: number; // Field Supervisor / Mandor count (1-3, default: 1)
+  mandorWage: number; // Mandor daily wage (default: 220000)
+  spotterCount: number; // Spotters / Flagmen count (1-4, default: 2)
+  spotterWage: number; // Spotter daily wage (default: 160000)
+  helperCount: number; // Pekerja / General Helpers count (0-6, default: 2)
+  helperWage: number; // Helper daily wage (default: 140000)
 }
 
 export interface MaterialFuelConfig {
@@ -84,6 +92,13 @@ export interface ProductivityMetrics {
   hourlyTippingCost: number;
   totalEstimatedCostIdr: number;
   unitRatePerM3: number;
+
+  // Manpower & Crew Telemetry
+  totalDailyLaborCost: number;
+  totalCrewHeadcount: number;
+  crewBreakdownText: string;
+  operatorCount: number;
+  driverCount: number;
 }
 
 export interface HistogramBin {

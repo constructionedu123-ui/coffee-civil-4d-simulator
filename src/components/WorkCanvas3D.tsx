@@ -15,6 +15,7 @@ import {
   Compass,
   Gauge,
   Truck,
+  HardHat,
 } from 'lucide-react';
 
 interface WorkCanvas3DProps {
@@ -244,6 +245,149 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
 
     t.userData = { id, capacityM3 };
     return t;
+  }, []);
+
+  // Helper to build realistic, low-poly civil construction workers with PPE (helmet & high-vis vest)
+  const createWorkerFigure = useCallback((role: 'spotter' | 'mandor' | 'helper') => {
+    const g = new THREE.Group();
+    g.name = `worker_${role}`;
+
+    const isMandor = role === 'mandor';
+    const isSpotter = role === 'spotter';
+
+    // Materials
+    const helmetColor = isMandor ? 0xf8fafc : 0xfacc15; // White supervisor helmet for Mandor, Yellow for Spotter/Helper
+    const vestColor = isMandor ? 0x84cc16 : 0xf97316; // Fluorescent Lime Green for Mandor, Neon Orange for Spotter/Helper
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.6 });
+    const helmetMat = new THREE.MeshStandardMaterial({ color: helmetColor, roughness: 0.35, metalness: 0.1 });
+    const vestMat = new THREE.MeshStandardMaterial({ color: vestColor, roughness: 0.45 });
+    const stripeMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.2, metalness: 0.6 });
+    const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.8 }); // Navy blue trousers
+    const bootsMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.9 }); // Dark work boots
+
+    // 1. Safety Work Boots
+    for (const xOff of [-0.14, 0.14]) {
+      const boot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.16, 0.32), bootsMat);
+      boot.position.set(xOff, 0.08, 0.04);
+      boot.castShadow = true;
+      g.add(boot);
+    }
+
+    // 2. Legs / Pants
+    for (const xOff of [-0.14, 0.14]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.72, 0.18), pantsMat);
+      leg.position.set(xOff, 0.52, 0);
+      leg.castShadow = true;
+      g.add(leg);
+    }
+
+    // 3. Torso with High-Vis Safety Vest
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.64, 0.28), vestMat);
+    torso.position.set(0, 1.16, 0);
+    torso.castShadow = true;
+    g.add(torso);
+
+    // Retroreflective silver stripe across chest
+    const stripeH = new THREE.Mesh(new THREE.BoxGeometry(0.53, 0.08, 0.29), stripeMat);
+    stripeH.position.set(0, 1.16, 0);
+    g.add(stripeH);
+
+    // 4. Head & Face
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.28, 0.26), skinMat);
+    head.position.set(0, 1.62, 0);
+    head.castShadow = true;
+    g.add(head);
+
+    // 5. Safety Helmet (Hardhat)
+    const helmetDome = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.18, 12), helmetMat);
+    helmetDome.position.set(0, 1.82, 0);
+    helmetDome.castShadow = true;
+    g.add(helmetDome);
+
+    const helmetBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.04, 12), helmetMat);
+    helmetBrim.position.set(0, 1.74, 0.03);
+    g.add(helmetBrim);
+
+    // 6. Role-Specific Props & Gestures
+    if (isSpotter) {
+      // Left arm resting
+      const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.14), vestMat);
+      leftArm.position.set(-0.32, 1.15, 0);
+      g.add(leftArm);
+
+      // Right arm raised holding signal flag (animated waving)
+      const flagArmPivot = new THREE.Group();
+      flagArmPivot.name = 'flagArm';
+      flagArmPivot.position.set(0.32, 1.35, 0);
+
+      const armMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.52, 0.14), vestMat);
+      armMesh.position.set(0.12, 0.1, 0.1);
+      armMesh.rotation.z = -Math.PI / 4;
+      flagArmPivot.add(armMesh);
+
+      // Wooden Flag Pole & Red Traffic Signal Cloth
+      const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, 1.35, 8),
+        new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.6 })
+      );
+      pole.position.set(0.28, 0.45, 0.2);
+      pole.rotation.z = -Math.PI / 6;
+      flagArmPivot.add(pole);
+
+      const flag = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.5, 0.36),
+        new THREE.MeshStandardMaterial({ color: 0xef4444, side: THREE.DoubleSide, roughness: 0.4 })
+      );
+      flag.position.set(0.55, 0.95, 0.2);
+      flag.rotation.y = Math.PI / 4;
+      flagArmPivot.add(flag);
+
+      g.add(flagArmPivot);
+    } else if (isMandor) {
+      // Both arms holding a field clipboard
+      for (const side of [-1, 1]) {
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.14), vestMat);
+        arm.position.set(side * 0.28, 1.2, 0.12);
+        arm.rotation.x = -Math.PI / 3;
+        g.add(arm);
+      }
+
+      // Wooden Clipboard with white inspection report sheet
+      const clipboardGroup = new THREE.Group();
+      clipboardGroup.position.set(0, 1.15, 0.35);
+      clipboardGroup.rotation.x = -Math.PI / 5;
+
+      const board = new THREE.Mesh(
+        new THREE.BoxGeometry(0.34, 0.44, 0.02),
+        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 })
+      );
+      clipboardGroup.add(board);
+
+      const paper = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.38, 0.01),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })
+      );
+      paper.position.z = 0.015;
+      clipboardGroup.add(paper);
+
+      g.add(clipboardGroup);
+    } else {
+      // General Helper / Pit Spotter holding grade rod
+      for (const side of [-1, 1]) {
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.14), vestMat);
+        arm.position.set(side * 0.32, 1.15, 0);
+        g.add(arm);
+      }
+
+      const rod = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.025, 1.8, 8),
+        new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3, metalness: 0.8 })
+      );
+      rod.position.set(0.36, 0.9, 0.1);
+      g.add(rod);
+    }
+
+    return g;
   }, []);
 
   // Synchronize 3D truck fleet meshes with user's slider count & capacity
@@ -602,7 +746,32 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     scene.add(dust);
     dustParticlesRef.current = dust;
 
-    // 14. Smooth 60 FPS RequestAnimationFrame Loop
+    // 14. Visual Construction Site Crew (Spotter, Mandor, Pit Helper)
+    const workersGroup = new THREE.Group();
+    workersGroup.name = 'workersGroup';
+
+    // Spotter directing truck traffic near pit ramp crest
+    const spotter = createWorkerFigure('spotter');
+    spotter.position.set(20.5, 0, 12.5);
+    spotter.rotation.y = -Math.PI / 4;
+    workersGroup.add(spotter);
+    const spotterFlagArm = spotter.getObjectByName('flagArm') as THREE.Group | null;
+
+    // Mandor inspecting excavation from the berm edge with clipboard
+    const mandor = createWorkerFigure('mandor');
+    mandor.position.set(-11, 0, 9);
+    mandor.rotation.y = Math.PI / 3.2;
+    workersGroup.add(mandor);
+
+    // Pit Helper near pit floor
+    const helper = createWorkerFigure('helper');
+    helper.position.set(-1, -5, -6);
+    helper.rotation.y = Math.PI / 8;
+    workersGroup.add(helper);
+
+    scene.add(workersGroup);
+
+    // 15. Smooth 60 FPS RequestAnimationFrame Loop
     const clock = new THREE.Clock();
     const loadingSpotPos = new THREE.Vector3(2, -5, 0);
     const lookTarget = new THREE.Vector3();
@@ -610,6 +779,12 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
     function animate() {
       animFrameRef.current = requestAnimationFrame(animate);
       const delta = clock.getDelta();
+      const time = clock.getElapsedTime();
+
+      // Animate Spotter flag waving to direct truck traffic
+      if (spotterFlagArm) {
+        spotterFlagArm.rotation.z = -Math.PI / 4 + Math.sin(time * 3.5) * 0.22;
+      }
 
       const currentSim = simStateRef.current;
       const currentCfg = configRef.current;
@@ -931,6 +1106,17 @@ export const WorkCanvas3D: React.FC<WorkCanvas3DProps> = ({
             <span className="text-slate-400">Total Cost Accrued:</span>
             <span className="font-mono font-bold text-amber-300">
               {formatIDR(simState.totalCostAccruedIdr)}
+            </span>
+          </div>
+
+          {/* Active Site Crew Telemetry Badge */}
+          <div className="flex items-center justify-between text-[11px] bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-slate-800">
+            <div className="flex items-center gap-1.5 text-slate-300">
+              <HardHat className="w-3.5 h-3.5 text-amber-400" />
+              <span>Crew: <strong className="text-white font-mono">{metrics.totalCrewHeadcount} People</strong></span>
+            </div>
+            <span className="font-mono text-[9px] text-amber-300 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-900/50">
+              ({metrics.crewBreakdownText})
             </span>
           </div>
 
